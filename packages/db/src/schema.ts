@@ -269,4 +269,7 @@ export const workerHeartbeats = pgTable("worker_heartbeats", {
   lastSeenAt: tz("last_seen_at").notNull(),
   version: text("version").notNull(),
   checksRun: bigint("checks_run", { mode: "number" }).notNull().default(0),
+  /** Set while the worker itself cannot reach the internet; checks are paused meanwhile. */
+  offlineSince: tz("offline_since"),
+  offlineReason: text("offline_reason", { enum: ["network", "dns"] }),
 });

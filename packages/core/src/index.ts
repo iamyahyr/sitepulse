@@ -1,3 +1,4 @@
+export * from "./connectivity";
 export * from "./degradation";
 export * from "./diagnosis";
 export * from "./incidents";

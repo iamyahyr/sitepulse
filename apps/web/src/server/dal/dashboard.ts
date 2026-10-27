@@ -28,13 +28,17 @@ export async function getDashboard(ownerId: string) {
   const siteRows = await listSites(ownerId);
   const ids = siteRows.map((s) => s.id);
   const [heartbeat] = await db()
-    .select({ lastSeenAt: workerHeartbeats.lastSeenAt })
+    .select({
+      lastSeenAt: workerHeartbeats.lastSeenAt,
+      offlineSince: workerHeartbeats.offlineSince,
+      offlineReason: workerHeartbeats.offlineReason,
+    })
     .from(workerHeartbeats)
     .orderBy(desc(workerHeartbeats.lastSeenAt))
     .limit(1);
 
   if (ids.length === 0) {
-    return { now, sites: [] as DashboardSite[], openIncidents: [] as OpenIncident[], workerLastSeen: heartbeat?.lastSeenAt ?? null };
+    return { now, sites: [] as DashboardSite[], openIncidents: [] as OpenIncident[], worker: heartbeat ?? null };
   }
 
   const weekAgo = new Date(now.getTime() - 7 * 24 * HOUR);
@@ -102,5 +106,5 @@ export async function getDashboard(ownerId: string) {
     }),
   );
 
-  return { now, sites, openIncidents, workerLastSeen: heartbeat?.lastSeenAt ?? null };
+  return { now, sites, openIncidents, worker: heartbeat ?? null };
 }

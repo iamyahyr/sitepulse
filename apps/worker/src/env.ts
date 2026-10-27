@@ -1,4 +1,5 @@
 import { hostname } from "node:os";
+import { DEFAULT_DNS_CANARIES, DEFAULT_TCP_CANARIES } from "@sitepulse/core";
 import { z } from "zod";
 
 const bool = (fallback: boolean) =>
@@ -6,6 +7,12 @@ const bool = (fallback: boolean) =>
     .enum(["true", "false", "1", "0", ""])
     .optional()
     .transform((v) => (v === undefined || v === "" ? fallback : v === "true" || v === "1"));
+
+const list = (fallback: readonly string[]) =>
+  z
+    .string()
+    .optional()
+    .transform((v) => (v === undefined ? [...fallback] : v.split(",").map((s) => s.trim()).filter(Boolean)));
 
 const schema = z.object({
   DATABASE_URL: z.url(),
@@ -21,6 +28,12 @@ const schema = z.object({
     .optional()
     .transform((v) => (v ?? "").split(",").map((s) => s.trim()).filter(Boolean)),
   RUN_MIGRATIONS: bool(true),
+  /**
+   * Canaries for the self-connectivity guard. Unset = sensible public
+   * defaults; set to an empty string to disable a kind of canary.
+   */
+  CONNECTIVITY_TCP_TARGETS: list(DEFAULT_TCP_CANARIES),
+  CONNECTIVITY_DNS_NAMES: list(DEFAULT_DNS_CANARIES),
 });
 
 export type WorkerEnv = z.infer<typeof schema>;

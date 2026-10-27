@@ -1,5 +1,5 @@
 import { diagnose, formatUptime, type ErrorCode } from "@sitepulse/core";
-import { Info, Plus, ShieldAlert } from "lucide-react";
+import { Info, Plus, ShieldAlert, WifiOff } from "lucide-react";
 import Link from "next/link";
 import { Card, EmptyState } from "@/components/card";
 import { PhaseWaterfall } from "@/components/phase-waterfall";
@@ -7,7 +7,7 @@ import { StatusBadge, StatusDot } from "@/components/status-badge";
 import { buttonClass } from "@/components/ui";
 import { UptimeBar } from "@/components/uptime-bar";
 import { brokenPhase, checkPhases } from "@/lib/checks";
-import { duration, ms, relativeTime } from "@/lib/format";
+import { clockTime, duration, ms, relativeTime } from "@/lib/format";
 import { getDashboard, type OpenIncident } from "@/server/dal/dashboard";
 import { requireUser } from "@/server/session";
 
@@ -65,6 +65,30 @@ function OpenIncidentCard({ open: { site, incident, lastFailed }, now }: { open:
   );
 }
 
+/**
+ * Shown while the worker reports that its own server is offline. Network-level
+ * failures are not held against sites meanwhile, so this banner is the only
+ * place the outage shows up: it must be impossible to miss.
+ */
+function MonitorOfflineBanner({ since, reason, now }: { since: Date; reason: "network" | "dns" | null; now: Date }) {
+  return (
+    <div role="alert" className="border-suspect/50 bg-suspect/10 flex gap-3 rounded-xl border px-5 py-4">
+      <WifiOff className="text-suspect mt-0.5 size-5 shrink-0" aria-hidden />
+      <div className="text-sm leading-relaxed">
+        <p className="font-semibold">
+          SitePulse&apos;s own server {reason === "dns" ? "cannot resolve domain names" : "cannot reach the internet"} since{" "}
+          {clockTime(since)}
+          {now.getTime() - since.getTime() >= 60_000 && ` (${duration(now.getTime() - since.getTime())})`}
+        </p>
+        <p className="text-muted mt-1">
+          Network-level failures are not counted against your sites meanwhile, so nothing is marked down because of
+          this. Sites that still answer keep being checked normally. Monitoring resumes on its own once connectivity is back.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function WorkerStatus({ lastSeen, now }: { lastSeen: Date | null; now: Date }) {
   if (!lastSeen) {
     return (
@@ -85,7 +109,8 @@ function WorkerStatus({ lastSeen, now }: { lastSeen: Date | null; now: Date }) {
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const { now, sites, openIncidents, workerLastSeen } = await getDashboard(user.id);
+  const { now, sites, openIncidents, worker } = await getDashboard(user.id);
+  const workerFresh = worker !== null && now.getTime() - worker.lastSeenAt.getTime() <= WORKER_STALE_MS;
 
   const enabled = sites.filter((s) => s.enabled);
   const operational = enabled.filter((s) => s.state === "up").length;
@@ -98,8 +123,12 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
           <p className="text-muted mt-1 text-sm">Checks run on the server whether or not this page is open.</p>
         </div>
-        <WorkerStatus lastSeen={workerLastSeen} now={now} />
+        <WorkerStatus lastSeen={worker?.lastSeenAt ?? null} now={now} />
       </div>
+
+      {workerFresh && worker.offlineSince && (
+        <MonitorOfflineBanner since={worker.offlineSince} reason={worker.offlineReason} now={now} />
+      )}
 
       {sites.length === 0 ? (
         <Card title="Get started">

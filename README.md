@@ -31,6 +31,7 @@ The worker (`apps/worker`) is a separate Node process, so checks keep running wi
 3. The result, the site's health state, the incident timeline and the alert outbox are written in one transaction.
 4. One failure marks a site *suspect* and rechecks it after a minute; a second consecutive failure opens an incident, backdated to the first failure. The first success resolves it.
 5. A heartbeat row shows the worker's liveness on the dashboard, and `HEARTBEAT_URL` (e.g. healthchecks.io) can alert you if the worker itself dies.
+6. **Self-connectivity guard.** If the monitor's own server loses its network or DNS, every site would look down at once. Before a network-level failure (DNS, TCP, TLS timeout…) counts against a site, the worker checks canaries (TCP to 1.1.1.1 / 8.8.8.8 / 9.9.9.9 and lookups of well-known names). If they fail too, the result is set aside and retried in a minute, and the dashboard shows that SitePulse itself is offline. Responses that prove the site answered (a 502, an expired certificate) are always recorded, and a real site answering recently overrides blocked canaries so a firewall cannot hide genuine outages.
 
 ```bash
 pnpm --filter @sitepulse/worker dev

@@ -1,6 +1,6 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import type { ErrorCode, ProbeResult } from "@sitepulse/core";
+import { ConnectivityMonitor, type ErrorCode, type ProbeResult } from "@sitepulse/core";
 import {
   alertChannels,
   createDb,
@@ -20,7 +20,7 @@ import { migrateDatabase } from "@sitepulse/db/migrate";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { recordResult } from "./record";
 import { claimDueSites } from "./scheduler";
-import { Worker } from "./worker";
+import { OFFLINE_RETRY_MS, Worker } from "./worker";
 
 /**
  * Runs against a real Postgres. Locally:
@@ -175,6 +175,7 @@ describe.skipIf(!url)("worker (Postgres integration)", () => {
         concurrency: 4,
         pollMs: 60_000,
         guard: { allowPrivateCidrs: ["127.0.0.0/8"] },
+        connectivity: null,
         probeOptions: { resolver: async () => [{ address: "127.0.0.1", family: 4 }] },
       });
 
@@ -205,12 +206,110 @@ describe.skipIf(!url)("worker (Postgres integration)", () => {
         concurrency: 1,
         pollMs: 60_000,
         guard: {},
+        connectivity: null,
         probeOptions: { resolver: async () => [{ address: "127.0.0.1", family: 4 }] },
       });
       await worker.tick();
       await worker.drain();
       const [check] = await db.select().from(checks).where(eq(checks.siteId, site.id));
       expect(check).toMatchObject({ success: false, errorCode: "BLOCKED_ADDRESS" });
+    });
+  });
+
+  describe("self-connectivity guard", () => {
+    let closedPort: number;
+    let server502: http.Server;
+    let port502: number;
+
+    beforeAll(async () => {
+      const closed = http.createServer();
+      await new Promise<void>((resolve) => closed.listen(0, "127.0.0.1", resolve));
+      closedPort = (closed.address() as AddressInfo).port;
+      await new Promise((resolve) => closed.close(resolve));
+
+      server502 = http.createServer((_req, res) => {
+        res.statusCode = 502;
+        res.end();
+      });
+      await new Promise<void>((resolve) => server502.listen(0, "127.0.0.1", resolve));
+      port502 = (server502.address() as AddressInfo).port;
+    });
+
+    afterAll(() => server502.close());
+
+    const workerWith = (initiallyOnline: boolean) => {
+      const net = { online: initiallyOnline };
+      const connectivity = new ConnectivityMonitor({
+        tcpTargets: ["1.1.1.1:443"],
+        dnsNames: ["cloudflare.com"],
+        cacheMs: 0,
+        checks: { tcp: async () => net.online, dns: async () => net.online },
+      });
+      const worker = new Worker(db, {
+        workerId: initiallyOnline ? "online-worker" : "offline-worker",
+        concurrency: 2,
+        pollMs: 60_000,
+        guard: { allowPrivateCidrs: ["127.0.0.0/8"] },
+        connectivity,
+        probeOptions: { resolver: async () => [{ address: "127.0.0.1", family: 4 }], timeoutMs: 2_000 },
+      });
+      return { worker, connectivity, net };
+    };
+
+    it("does not hold network failures against a site while the worker is offline", async () => {
+      const site = await addSite({ url: `http://site.test:${closedPort}/` });
+      const { worker } = workerWith(false);
+
+      const before = Date.now();
+      await worker.tick();
+      await worker.drain();
+
+      expect(await db.select().from(checks)).toHaveLength(0);
+      expect(await db.select().from(incidents)).toHaveLength(0);
+      const [row] = await db.select().from(sites).where(eq(sites.id, site.id));
+      expect(row).toMatchObject({ state: "unknown", consecutiveFailures: 0, lastCheckedAt: null });
+      expect(row!.nextCheckAt.getTime()).toBeGreaterThanOrEqual(before + OFFLINE_RETRY_MS);
+
+      await worker.heartbeat();
+      const [heartbeat] = await db.select().from(workerHeartbeats);
+      expect(heartbeat).toMatchObject({ workerId: "offline-worker", offlineReason: "network" });
+      expect(heartbeat!.offlineSince).toBeInstanceOf(Date);
+    });
+
+    it("clears the offline flag on the next heartbeat once connectivity returns, even with no sites", async () => {
+      const { worker, connectivity, net } = workerWith(false);
+      await connectivity.status();
+      await worker.heartbeat();
+      expect((await db.select().from(workerHeartbeats))[0]!.offlineReason).toBe("network");
+
+      net.online = true;
+      await worker.heartbeat();
+      const [heartbeat] = await db.select().from(workerHeartbeats);
+      expect(heartbeat).toMatchObject({ offlineSince: null, offlineReason: null });
+    });
+
+    it("still records failures that prove the site answered, and comes back online", async () => {
+      await addSite({ url: `http://site.test:${port502}/` });
+      const { worker, connectivity } = workerWith(false);
+      await connectivity.status();
+      expect(connectivity.state.reason).toBe("network");
+
+      await worker.tick();
+      await worker.drain();
+
+      const [check] = await db.select().from(checks);
+      expect(check).toMatchObject({ success: false, httpStatus: 502, errorCode: "HTTP_5XX" });
+      await connectivity.status();
+      expect(connectivity.state).toEqual({ offlineSince: null, reason: null });
+    });
+
+    it("records network failures normally while the worker is online", async () => {
+      await addSite({ url: `http://site.test:${closedPort}/` });
+      const { worker } = workerWith(true);
+      await worker.tick();
+      await worker.drain();
+      const [check] = await db.select().from(checks);
+      expect(check).toMatchObject({ success: false, errorCode: "TCP_REFUSED" });
     });
   });
 });

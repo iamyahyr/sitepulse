@@ -1,8 +1,15 @@
-import { probe, type GuardOptions, type ProbeOptions } from "@sitepulse/core";
+import {
+  isNetworkLayerFailure,
+  isSuppressed,
+  probe,
+  type ConnectivityMonitor,
+  type GuardOptions,
+  type ProbeOptions,
+} from "@sitepulse/core";
 import { sql, workerHeartbeats, type Database } from "@sitepulse/db";
 import { log } from "./log";
 import { recordResult } from "./record";
-import { claimDueSites, type ClaimedSite } from "./scheduler";
+import { claimDueSites, deferSite, type ClaimedSite } from "./scheduler";
 
 export const VERSION = "0.1.0";
 
@@ -12,12 +19,16 @@ export type WorkerOptions = {
   pollMs: number;
   guard: GuardOptions;
   heartbeatUrl?: string;
+  /** Null disables the self-connectivity guard. */
+  connectivity: ConnectivityMonitor | null;
   /** Overrides for tests (resolver, CA…). */
   probeOptions?: Partial<ProbeOptions>;
 };
 
 const HEARTBEAT_EVERY_MS = 15_000;
 const EXTERNAL_PING_EVERY_MS = 60_000;
+/** How long to wait before retrying a site whose check was inconclusive because we were offline. */
+export const OFFLINE_RETRY_MS = 60_000;
 
 /**
  * Polls for due sites, probes them with bounded concurrency and records the
@@ -30,6 +41,7 @@ export class Worker {
   private stopped = true;
   private checksSinceHeartbeat = 0;
   private lastTickOk = false;
+  private loggedOfflineReason: string | null = null;
 
   constructor(
     private readonly db: Database,
@@ -39,7 +51,13 @@ export class Worker {
   start() {
     this.stopped = false;
     this.scheduleTick(0);
-    void this.heartbeat();
+    // Know our own connectivity from the start, so the dashboard can warn
+    // right away instead of after the first failing site.
+    void this.options.connectivity
+      ?.status()
+      .then(() => this.logConnectivityChange())
+      .finally(() => void this.heartbeat());
+    if (!this.options.connectivity) void this.heartbeat();
     this.timers.push(setInterval(() => void this.heartbeat(), HEARTBEAT_EVERY_MS));
     if (this.options.heartbeatUrl) {
       this.timers.push(setInterval(() => void this.pingExternal(), EXTERNAL_PING_EVERY_MS));
@@ -98,6 +116,22 @@ export class Worker {
         guard: this.options.guard,
         ...this.options.probeOptions,
       });
+      const { connectivity } = this.options;
+      connectivity?.noteProbe(result);
+
+      // A network-level failure may be ours, not the site's: if the canaries
+      // say this server is offline, the result says nothing about the site.
+      if (connectivity && !result.ok && isNetworkLayerFailure(result.errorCode)) {
+        const status = await connectivity.status();
+        this.logConnectivityChange();
+        if (isSuppressed(result.errorCode, status)) {
+          await deferSite(this.db, site, new Date(Date.now() + OFFLINE_RETRY_MS));
+          log("info", "check deferred: monitor offline", { siteId: site.id, errorCode: result.errorCode });
+          return;
+        }
+      }
+      this.logConnectivityChange();
+
       const outcome = await recordResult(this.db, site, result, checkedAt);
       this.checksSinceHeartbeat++;
 
@@ -114,20 +148,39 @@ export class Worker {
     }
   }
 
-  private async heartbeat() {
+  private logConnectivityChange() {
+    const state = this.options.connectivity?.state;
+    const reason = state?.reason ?? null;
+    if (reason === this.loggedOfflineReason) return;
+    this.loggedOfflineReason = reason;
+    if (reason) log("warn", "monitor offline: pausing verdicts on network failures", { reason, since: state?.offlineSince });
+    else log("info", "monitor connectivity restored");
+  }
+
+  async heartbeat() {
+    const { connectivity } = this.options;
+    // While offline, re-measure on every heartbeat: recovery must not depend
+    // on some site failing or answering (there may be no active sites at all).
+    if (connectivity?.state.offlineSince) {
+      await connectivity.status();
+      this.logConnectivityChange();
+    }
     const checks = this.checksSinceHeartbeat;
     this.checksSinceHeartbeat = 0;
+    const offline = connectivity?.state ?? { offlineSince: null, reason: null };
+    const fields = {
+      lastSeenAt: new Date(),
+      version: VERSION,
+      offlineSince: offline.offlineSince,
+      offlineReason: offline.reason,
+    };
     try {
       await this.db
         .insert(workerHeartbeats)
-        .values({ workerId: this.options.workerId, lastSeenAt: new Date(), version: VERSION, checksRun: checks })
+        .values({ workerId: this.options.workerId, checksRun: checks, ...fields })
         .onConflictDoUpdate({
           target: workerHeartbeats.workerId,
-          set: {
-            lastSeenAt: new Date(),
-            version: VERSION,
-            checksRun: sql`${workerHeartbeats.checksRun} + ${checks}`,
-          },
+          set: { ...fields, checksRun: sql`${workerHeartbeats.checksRun} + ${checks}` },
         });
     } catch (err) {
       this.checksSinceHeartbeat += checks;

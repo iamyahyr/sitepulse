@@ -1,3 +1,4 @@
+import { ConnectivityMonitor } from "@sitepulse/core";
 import { createDb } from "@sitepulse/db";
 import { migrateDatabase } from "@sitepulse/db/migrate";
 import { loadEnv } from "./env";
@@ -19,6 +20,10 @@ async function main() {
     pollMs: env.WORKER_POLL_MS,
     guard: { allowPrivateCidrs: env.ALLOW_PRIVATE_CIDRS },
     heartbeatUrl: env.HEARTBEAT_URL,
+    connectivity:
+      env.CONNECTIVITY_TCP_TARGETS.length || env.CONNECTIVITY_DNS_NAMES.length
+        ? new ConnectivityMonitor({ tcpTargets: env.CONNECTIVITY_TCP_TARGETS, dnsNames: env.CONNECTIVITY_DNS_NAMES })
+        : null,
   });
   worker.start();
 

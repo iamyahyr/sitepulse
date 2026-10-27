@@ -1,5 +1,17 @@
 import { and, eq, inArray, lte, sites, type Database } from "@sitepulse/db";
 
+/**
+ * Reschedules a claimed site without recording anything, e.g. when the
+ * worker itself is offline. Ignored if the site was edited meanwhile (the
+ * edit already rescheduled it).
+ */
+export async function deferSite(db: Database, site: ClaimedSite, until: Date): Promise<void> {
+  await db
+    .update(sites)
+    .set({ nextCheckAt: until })
+    .where(and(eq(sites.id, site.id), eq(sites.url, site.url)));
+}
+
 export type ClaimedSite = Pick<
   typeof sites.$inferSelect,
   "id" | "url" | "intervalSec" | "timeoutMs" | "expectedStatus"
