@@ -19,7 +19,9 @@ import {
   inArray,
   notifications,
   siteAlertChannels,
+  siteDegradations,
   sites,
+  sql,
 } from "@sitepulse/db";
 import { z } from "zod";
 import { db } from "@/server/db";
@@ -182,8 +184,10 @@ export async function recentDeliveries(ownerId: string, limit = 20) {
     })
     .from(notifications)
     .innerJoin(alertChannels, eq(alertChannels.id, notifications.channelId))
-    .innerJoin(incidents, eq(incidents.id, notifications.incidentId))
-    .innerJoin(sites, eq(sites.id, incidents.siteId))
+    // An alert is about an incident or a degradation; either one leads to the site.
+    .leftJoin(incidents, eq(incidents.id, notifications.incidentId))
+    .leftJoin(siteDegradations, eq(siteDegradations.id, notifications.degradationId))
+    .innerJoin(sites, sql`${sites.id} = coalesce(${incidents.siteId}, ${siteDegradations.siteId})`)
     .where(eq(alertChannels.ownerId, ownerId))
     .orderBy(desc(notifications.createdAt))
     .limit(limit);

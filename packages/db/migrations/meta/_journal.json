@@ -15,6 +15,13 @@
       "when": 1793128522731,
       "tag": "0001_worker_connectivity",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793131777931,
+      "tag": "0002_degradations",
+      "breakpoints": true
     }
   ]
 }

@@ -40,3 +40,48 @@ export function detectDegradation(
   if (ratio < config.minRatio || recentMedianMs - baselineMedianMs < config.minDeltaMs) return null;
   return { recentMedianMs, baselineMedianMs, ratio };
 }
+
+export const PHASES = ["dns", "connect", "tls", "ttfb", "download"] as const;
+export type Phase = (typeof PHASES)[number];
+export type PhaseSamples = Partial<Record<Phase, readonly number[]>>;
+export type PhaseDegradation = Degradation & { phase: Phase };
+
+/**
+ * Checks every request phase and reports the one that got worse by the most
+ * milliseconds, so the alert can say *where* the time went ("TTFB ×3"), not
+ * just that the site is slower.
+ */
+export function detectPhaseDegradation(
+  recent: PhaseSamples,
+  baseline: PhaseSamples,
+  config: DegradationConfig = DEFAULT_DEGRADATION_CONFIG,
+): PhaseDegradation | null {
+  let worst: PhaseDegradation | null = null;
+  for (const phase of PHASES) {
+    const found = detectDegradation(recent[phase] ?? [], baseline[phase] ?? [], config);
+    if (!found) continue;
+    const delta = found.recentMedianMs - found.baselineMedianMs;
+    if (!worst || delta > worst.recentMedianMs - worst.baselineMedianMs) worst = { ...found, phase };
+  }
+  return worst;
+}
+
+/** Below this ratio a degradation counts as over; lower than minRatio so it does not flap. */
+export const RECOVERY_RATIO = 1.5;
+
+export function isDegradationOver(recentMedianMs: number | null, baselineMs: number): boolean {
+  // No recent successful samples says nothing about speed (the site may be down): keep it open.
+  if (recentMedianMs === null) return false;
+  return recentMedianMs / Math.max(baselineMs, 1) < RECOVERY_RATIO;
+}
+
+export const PHASE_INFO: Record<Phase, { label: string; hint: string }> = {
+  dns: { label: "DNS lookup", hint: "The DNS provider is answering slowly." },
+  connect: { label: "TCP connect", hint: "The network path or the server's connection handling is slower." },
+  tls: { label: "TLS handshake", hint: "TLS termination (proxy/CDN) is struggling, often under CPU load." },
+  ttfb: {
+    label: "Server response (TTFB)",
+    hint: "The application itself is slower: look at slow queries, CPU or memory pressure, cold caches.",
+  },
+  download: { label: "Download", hint: "Responses got bigger or bandwidth dropped." },
+};

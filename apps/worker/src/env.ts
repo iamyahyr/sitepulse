@@ -31,6 +31,11 @@ const schema = z.object({
     .optional()
     .transform((v) => (v ?? "").split(",").map((s) => s.trim()).filter(Boolean)),
   RUN_MIGRATIONS: bool(true),
+  /** Raw checks older than this are deleted; hourly rollups keep the history. */
+  CHECK_RETENTION_DAYS: z.coerce.number().int().min(2).default(30),
+  ROLLUP_RETENTION_DAYS: z.coerce.number().int().min(7).default(400),
+  /** Rollups, degradation detection and retention run this often. */
+  MAINTENANCE_INTERVAL_MS: z.coerce.number().int().min(10_000).default(5 * 60_000),
   /** File touched while the worker is healthy; the Docker health check reads its age. */
   HEALTH_FILE: z.string().optional(),
   /** Same value as the web app: decrypts alert channel configs. */

@@ -1,4 +1,4 @@
-import { decryptJson, sendAlert, type ChannelConfig, type ErrorCode, type PostOptions } from "@sitepulse/core";
+import { decryptJson, sendAlert, type AlertEvent, type ChannelConfig, type ErrorCode, type PostOptions } from "@sitepulse/core";
 import {
   alertChannels,
   and,
@@ -11,6 +11,7 @@ import {
   inArray,
   lte,
   notifications,
+  siteDegradations,
   sites,
   sql,
   type Database,
@@ -69,12 +70,69 @@ async function claim(db: Database, limit: number, now: Date) {
   });
 }
 
+/** Builds the alert from whichever subject the outbox row points at: an incident or a degradation. */
+async function buildEvent(
+  db: Database,
+  notification: typeof notifications.$inferSelect,
+  appUrl: string | null,
+): Promise<AlertEvent | null> {
+  const dashboardUrl = (siteId: string) => (appUrl ? new URL(`/sites/${siteId}`, appUrl).href : null);
+
+  if (notification.degradationId) {
+    const [row] = await db
+      .select({ degradation: siteDegradations, site: sites })
+      .from(siteDegradations)
+      .innerJoin(sites, eq(sites.id, siteDegradations.siteId))
+      .where(eq(siteDegradations.id, notification.degradationId));
+    if (!row) return null;
+    return {
+      kind: "degraded",
+      deliveryId: notification.id,
+      site: { id: row.site.id, name: row.site.name, url: row.site.url },
+      incident: null,
+      degradation: {
+        id: row.degradation.id,
+        phase: row.degradation.phase,
+        startedAt: row.degradation.startedAt,
+        baselineMs: row.degradation.baselineMs,
+        recentMs: row.degradation.peakMs,
+      },
+      dashboardUrl: dashboardUrl(row.site.id),
+    };
+  }
+
+  const [row] = await db
+    .select({ incident: incidents, site: sites })
+    .from(incidents)
+    .innerJoin(sites, eq(sites.id, incidents.siteId))
+    .where(eq(incidents.id, notification.incidentId!));
+  if (!row) return null;
+  const [lastFailed] = await db
+    .select({ httpStatus: checks.httpStatus })
+    .from(checks)
+    .where(and(eq(checks.siteId, row.site.id), eq(checks.success, false), gte(checks.checkedAt, row.incident.startedAt)))
+    .orderBy(desc(checks.checkedAt))
+    .limit(1);
+  return {
+    kind: notification.kind === "up" ? "up" : "down",
+    deliveryId: notification.id,
+    site: { id: row.site.id, name: row.site.name, url: row.site.url },
+    incident: {
+      id: row.incident.id,
+      startedAt: row.incident.startedAt,
+      resolvedAt: row.incident.resolvedAt,
+      cause: row.incident.causeCode as ErrorCode,
+      lastErrorMessage: row.incident.lastErrorMessage,
+      httpStatus: lastFailed?.httpStatus ?? null,
+    },
+    dashboardUrl: dashboardUrl(row.site.id),
+  };
+}
+
 async function deliver(db: Database, id: string, attempt: number, options: DispatcherOptions) {
   const [row] = await db
-    .select({ notification: notifications, incident: incidents, site: sites, channel: alertChannels })
+    .select({ notification: notifications, channel: alertChannels })
     .from(notifications)
-    .innerJoin(incidents, eq(incidents.id, notifications.incidentId))
-    .innerJoin(sites, eq(sites.id, incidents.siteId))
     .innerJoin(alertChannels, eq(alertChannels.id, notifications.channelId))
     .where(eq(notifications.id, id));
   if (!row) return; // Cascaded away (site or channel deleted) meanwhile.
@@ -91,36 +149,14 @@ async function deliver(db: Database, id: string, attempt: number, options: Dispa
     return;
   }
 
-  const [lastFailed] = await db
-    .select({ httpStatus: checks.httpStatus })
-    .from(checks)
-    .where(and(eq(checks.siteId, row.site.id), eq(checks.success, false), gte(checks.checkedAt, row.incident.startedAt)))
-    .orderBy(desc(checks.checkedAt))
-    .limit(1);
-
-  const result = await sendAlert(
-    config,
-    {
-      kind: row.notification.kind === "up" ? "up" : "down",
-      deliveryId: id,
-      site: { id: row.site.id, name: row.site.name, url: row.site.url },
-      incident: {
-        id: row.incident.id,
-        startedAt: row.incident.startedAt,
-        resolvedAt: row.incident.resolvedAt,
-        cause: row.incident.causeCode as ErrorCode,
-        lastErrorMessage: row.incident.lastErrorMessage,
-        httpStatus: lastFailed?.httpStatus ?? null,
-      },
-      dashboardUrl: options.appUrl ? new URL(`/sites/${row.site.id}`, options.appUrl).href : null,
-    },
-    options.postOptions,
-  );
+  const event = await buildEvent(db, row.notification, options.appUrl);
+  if (!event) return;
+  const result = await sendAlert(config, event, options.postOptions);
 
   const maxAttempts = options.maxAttempts ?? MAX_ATTEMPTS;
   if (result.ok) {
     await finish({ status: "sent", sentAt: new Date(), lastError: null });
-    log("info", "alert sent", { notificationId: id, kind: row.notification.kind, channel: row.channel.type, siteId: row.site.id });
+    log("info", "alert sent", { notificationId: id, kind: row.notification.kind, channel: row.channel.type, siteId: event.site.id });
   } else if (!result.retryable || attempt >= maxAttempts) {
     await finish({ status: "failed", lastError: result.error });
     log("error", "alert failed", { notificationId: id, attempt, error: result.error });

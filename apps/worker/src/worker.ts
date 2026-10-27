@@ -10,6 +10,7 @@ import {
 import { sql, workerHeartbeats, type Database } from "@sitepulse/db";
 import { dispatchOnce, type DispatcherOptions } from "./dispatcher";
 import { log } from "./log";
+import { runMaintenance, type MaintenanceOptions } from "./maintenance";
 import { recordResult } from "./record";
 import { claimDueSites, deferSite, type ClaimedSite } from "./scheduler";
 
@@ -23,6 +24,8 @@ export type WorkerOptions = {
   heartbeatUrl?: string;
   /** Touched after every healthy heartbeat, for container health checks. */
   healthFile?: string;
+  /** Null disables rollups, degradation detection and retention in this worker. */
+  maintenance: (MaintenanceOptions & { intervalMs: number }) | null;
   /** Null disables alert delivery from this worker. */
   alerts: DispatcherOptions | null;
   /** Null disables the self-connectivity guard. */
@@ -49,6 +52,7 @@ export class Worker {
   private lastTickOk = false;
   private loggedOfflineReason: string | null = null;
   private dispatching: Promise<unknown> | null = null;
+  private maintaining: Promise<unknown> | null = null;
 
   constructor(
     private readonly db: Database,
@@ -59,6 +63,8 @@ export class Worker {
     this.stopped = false;
     this.scheduleTick(0);
     this.scheduleDispatch(0);
+    // Give the first checks a head start, then run on a fixed cadence.
+    this.scheduleMaintenance(30_000);
     // Know our own connectivity from the start, so the dashboard can warn
     // right away instead of after the first failing site.
     void this.options.connectivity
@@ -78,7 +84,7 @@ export class Worker {
     this.stopped = true;
     for (const timer of this.timers) clearTimeout(timer);
     this.timers = [];
-    await Promise.allSettled([...this.inFlight, this.dispatching]);
+    await Promise.allSettled([...this.inFlight, this.dispatching, this.maintaining]);
     await this.heartbeat();
     log("info", "worker stopped", { workerId: this.options.workerId });
   }
@@ -132,6 +138,24 @@ export class Worker {
         log("error", "alert dispatch failed", { error: String(err) });
         this.scheduleDispatch(this.options.pollMs);
       }
+    }, delay);
+    this.timers.push(timer);
+  }
+
+  private scheduleMaintenance(delay: number) {
+    const maintenance = this.options.maintenance;
+    if (this.stopped || !maintenance) return;
+    const timer = setTimeout(async () => {
+      this.timers = this.timers.filter((t) => t !== timer);
+      try {
+        this.maintaining = runMaintenance(this.db, maintenance);
+        await this.maintaining;
+      } catch (err) {
+        log("error", "maintenance failed", { error: String(err) });
+      } finally {
+        this.maintaining = null;
+      }
+      this.scheduleMaintenance(maintenance.intervalMs);
     }, delay);
     this.timers.push(timer);
   }

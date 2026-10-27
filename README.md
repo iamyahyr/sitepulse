@@ -59,9 +59,17 @@ The worker (`apps/worker`) is a separate Node process, so checks keep running wi
 pnpm --filter @sitepulse/worker dev
 ```
 
+## History and early warnings
+
+Every 5 minutes the worker runs maintenance:
+
+- **Hourly rollups.** Raw checks are aggregated per site and hour (success count, p50/p95 total time, p50 of every phase). The 7- and 30-day charts read these, so they stay fast and outlive raw data.
+- **Retention.** Raw checks are deleted after `CHECK_RETENTION_DAYS` (30), hourly rollups after `ROLLUP_RETENTION_DAYS` (400), in small batches. Incidents are never deleted, so uptime history is kept.
+- **Degradation detection.** For each healthy site, the median of every phase over the last hour is compared with that site's own 7-day baseline. When a phase is at least 2.5× slower *and* 200 ms slower, SitePulse opens a "slower than usual" warning naming the phase (e.g. *Server response (TTFB) ×3.2: look at slow queries, CPU, cold caches*) and sends one alert. It closes when the phase drops back under 1.5× (hysteresis, so it does not flap). Both conditions are needed, so 5 ms → 20 ms never pages anyone.
+
 ## Alerts
 
-One message when an incident opens and one when it resolves, through **Discord** or a **signed webhook** (Slack, n8n, ntfy, Zapier…). Alerts go through a transactional outbox: written in the same transaction that opens or resolves the incident, delivered by the worker with retries and exponential backoff, never duplicated per check. Channel settings are encrypted at rest with `SITEPULSE_SECRET_KEY` (same value in web and worker), and webhook URLs get the same SSRF protection as monitored sites.
+One message when an incident opens, one when it resolves and one when a site starts degrading, through **Discord** or a **signed webhook** (Slack, n8n, ntfy, Zapier…). Alerts go through a transactional outbox: written in the same transaction that opens or resolves the incident, delivered by the worker with retries and exponential backoff, never duplicated per check. Channel settings are encrypted at rest with `SITEPULSE_SECRET_KEY` (same value in web and worker), and webhook URLs get the same SSRF protection as monitored sites.
 
 Webhook requests carry `X-SitePulse-Event`, `X-SitePulse-Delivery` (stable across retries, use it to de-duplicate) and `X-SitePulse-Signature: t=<unix>,v1=<hex>`, the HMAC-SHA256 of `` `${t}.${rawBody}` `` with the channel's secret:
 

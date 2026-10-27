@@ -3,6 +3,7 @@ import {
   bigint,
   bigserial,
   boolean,
+  check,
   index,
   integer,
   pgEnum,
@@ -202,6 +203,30 @@ export const incidentEvents = pgTable(
   (t) => [index("incident_events_incident_idx").on(t.incidentId, t.at)],
 );
 
+/**
+ * Sustained slowdowns of one request phase (e.g. TTFB ×3 over its usual
+ * median) while the site is still up: an early warning before an outage.
+ */
+export const siteDegradations = pgTable(
+  "site_degradations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.id, { onDelete: "cascade" }),
+    phase: text("phase", { enum: ["dns", "connect", "tls", "ttfb", "download"] }).notNull(),
+    startedAt: tz("started_at").notNull(),
+    resolvedAt: tz("resolved_at"),
+    baselineMs: real("baseline_ms").notNull(),
+    /** Recent median when detected, then the worst seen while it lasted. */
+    peakMs: real("peak_ms").notNull(),
+  },
+  (t) => [
+    index("site_degradations_site_time_idx").on(t.siteId, t.startedAt.desc()),
+    uniqueIndex("site_degradations_one_open_per_site").on(t.siteId).where(sql`${t.resolvedAt} is null`),
+  ],
+);
+
 // ─── Alerting ───────────────────────────────────────────────────────────
 
 export const alertChannelType = pgEnum("alert_channel_type", ["discord", "webhook"]);
@@ -236,15 +261,15 @@ export const notificationStatus = pgEnum("notification_status", ["pending", "sen
 
 /**
  * Transactional outbox. A row is inserted in the same transaction that opens
- * or resolves an incident; the unique key makes duplicate alerts impossible.
+ * or resolves an incident (or opens a degradation); the unique keys make
+ * duplicate alerts impossible.
  */
 export const notifications = pgTable(
   "notifications",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    incidentId: uuid("incident_id")
-      .notNull()
-      .references(() => incidents.id, { onDelete: "cascade" }),
+    incidentId: uuid("incident_id").references(() => incidents.id, { onDelete: "cascade" }),
+    degradationId: uuid("degradation_id").references(() => siteDegradations.id, { onDelete: "cascade" }),
     channelId: uuid("channel_id")
       .notNull()
       .references(() => alertChannels.id, { onDelete: "cascade" }),
@@ -258,6 +283,9 @@ export const notifications = pgTable(
   },
   (t) => [
     uniqueIndex("notifications_once").on(t.incidentId, t.channelId, t.kind),
+    uniqueIndex("notifications_degradation_once").on(t.degradationId, t.channelId, t.kind),
+    // Every alert is about exactly one incident or one degradation.
+    check("notifications_one_subject", sql`(${t.incidentId} is null) <> (${t.degradationId} is null)`),
     index("notifications_pending_idx").on(t.nextAttemptAt).where(sql`${t.status} = 'pending'`),
   ],
 );

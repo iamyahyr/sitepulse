@@ -2,7 +2,7 @@ import "server-only";
 import { computeUptime } from "@sitepulse/core";
 import { and, checks, desc, eq, gt, inArray, incidents, isNull, or, sql, workerHeartbeats } from "@sitepulse/db";
 import { db } from "@/server/db";
-import { latestChecks, listSites, type Check, type Site } from "@/server/dal/sites";
+import { latestChecks, listSites, openDegradations, type Check, type Degradation, type Site } from "@/server/dal/sites";
 
 const HOUR = 3_600_000;
 export const BAR_HOURS = 48;
@@ -15,6 +15,8 @@ export type DashboardSite = Site & {
   p50Ms: number | null;
   /** Oldest → newest, one per hour, ending with the current hour. */
   buckets: HourBucket[];
+  /** Open "slower than usual" warning, if any. */
+  degradation: Degradation | null;
 };
 
 export type OpenIncident = {
@@ -45,7 +47,7 @@ export async function getDashboard(ownerId: string) {
   const currentHour = new Date(Math.floor(now.getTime() / HOUR) * HOUR);
   const barStart = new Date(currentHour.getTime() - (BAR_HOURS - 1) * HOUR);
 
-  const [latest, p50Rows, bucketRows, incidentRows] = await Promise.all([
+  const [latest, p50Rows, bucketRows, incidentRows, degradations] = await Promise.all([
     latestChecks(ids),
     db()
       .select({
@@ -69,6 +71,7 @@ export async function getDashboard(ownerId: string) {
       .select()
       .from(incidents)
       .where(and(inArray(incidents.siteId, ids), or(isNull(incidents.resolvedAt), gt(incidents.resolvedAt, weekAgo)))),
+    openDegradations(ids),
   ]);
 
   const p50 = new Map(p50Rows.map((r) => [r.siteId, r.p50]));
@@ -90,6 +93,7 @@ export async function getDashboard(ownerId: string) {
       uptime7d: site.lastCheckedAt ? computeUptime(siteIncidents, { from: weekAgo, to: now }, site.createdAt).ratio : null,
       p50Ms: p50.get(site.id) ?? null,
       buckets,
+      degradation: degradations.get(site.id) ?? null,
     };
   });
 

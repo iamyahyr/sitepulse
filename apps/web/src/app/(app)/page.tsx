@@ -2,6 +2,7 @@ import { diagnose, formatUptime, type ErrorCode } from "@sitepulse/core";
 import { Info, Plus, ShieldAlert, WifiOff } from "lucide-react";
 import Link from "next/link";
 import { Card, EmptyState } from "@/components/card";
+import { DegradationNotice } from "@/components/degradation-notice";
 import { PhaseWaterfall } from "@/components/phase-waterfall";
 import { StatusBadge, StatusDot } from "@/components/status-badge";
 import { buttonClass } from "@/components/ui";
@@ -157,6 +158,13 @@ export default async function DashboardPage() {
             <OpenIncidentCard key={open.incident.id} open={open} now={now} />
           ))}
 
+          {sites.map(
+            (site) =>
+              site.degradation && (
+                <DegradationNotice key={site.degradation.id} degradation={site.degradation} now={now} site={site} />
+              ),
+          )}
+
           <Card title="Sites">
             <div className="-mx-5 -my-5 overflow-x-auto">
               <table className="w-full min-w-[760px] text-sm whitespace-nowrap">
@@ -192,6 +200,14 @@ export default async function DashboardPage() {
                         </td>
                         <td className="px-3 py-3">
                           {site.enabled ? <StatusBadge state={site.state} /> : <span className="text-muted">Paused</span>}
+                          {site.degradation && (
+                            <span
+                              className="border-suspect/50 text-suspect ml-2 rounded border px-1.5 py-0.5 text-[11px] font-medium"
+                              title="Slower than its usual median"
+                            >
+                              Slow
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-3">
                           <UptimeBar buckets={site.buckets} />

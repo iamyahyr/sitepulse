@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectDegradation, median } from "./degradation";
+import { detectDegradation, detectPhaseDegradation, isDegradationOver, median } from "./degradation";
 import { matchesExpectedStatus, parseExpectedStatus } from "./status";
 import { computeUptime, formatUptime } from "./uptime";
 
@@ -95,5 +95,36 @@ describe("detectDegradation", () => {
     expect(median([3, 1, 2])).toBe(2);
     expect(median([4, 1, 2, 3])).toBe(2.5);
     expect(median([])).toBeNull();
+  });
+});
+
+describe("detectPhaseDegradation", () => {
+  const steady = (ms: number, n = 30) => Array.from({ length: n }, (_, i) => ms + (i % 3));
+
+  it("names the phase that slowed down the most", () => {
+    const result = detectPhaseDegradation(
+      { dns: [10, 11, 10, 12], connect: [40, 41, 39, 40], ttfb: [600, 640, 620, 610] },
+      { dns: steady(10), connect: steady(40), ttfb: steady(150) },
+    );
+    expect(result).toMatchObject({ phase: "ttfb", baselineMedianMs: 151 });
+    expect(result!.ratio).toBeGreaterThan(4);
+  });
+
+  it("prefers the biggest absolute slowdown when several phases degrade", () => {
+    const result = detectPhaseDegradation(
+      { dns: [400, 410, 420, 400], ttfb: [900, 920, 910, 905] },
+      { dns: steady(20), ttfb: steady(200) },
+    );
+    expect(result?.phase).toBe("ttfb");
+  });
+
+  it("stays quiet for normal noise", () => {
+    expect(detectPhaseDegradation({ ttfb: [160, 170, 155, 165] }, { ttfb: steady(150) })).toBeNull();
+  });
+
+  it("closes with hysteresis and never on missing data", () => {
+    expect(isDegradationOver(200, 150)).toBe(true);
+    expect(isDegradationOver(300, 150)).toBe(false);
+    expect(isDegradationOver(null, 150)).toBe(false);
   });
 });

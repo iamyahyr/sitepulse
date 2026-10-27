@@ -1,3 +1,4 @@
+import { PHASE_INFO, type Phase } from "./degradation";
 import { diagnose, type ErrorCode } from "./diagnosis";
 import { safePost, type PostOptions, type PostResult } from "./outbound";
 import { signWebhook } from "./secrets";
@@ -5,7 +6,7 @@ import { signWebhook } from "./secrets";
 /** Decrypted channel configuration. Stored encrypted; never sent to the browser. */
 export type ChannelConfig = { type: "discord"; url: string } | { type: "webhook"; url: string; secret: string };
 
-export type AlertKind = "down" | "up" | "test";
+export type AlertKind = "down" | "up" | "degraded" | "test";
 
 export type AlertEvent = {
   kind: AlertKind;
@@ -19,6 +20,14 @@ export type AlertEvent = {
     cause: ErrorCode;
     lastErrorMessage: string | null;
     httpStatus: number | null;
+  } | null;
+  /** Set for "degraded" alerts: which phase slowed down and by how much. */
+  degradation?: {
+    id: string;
+    phase: Phase;
+    startedAt: Date;
+    baselineMs: number;
+    recentMs: number;
   } | null;
   /** Link to the site in the dashboard, when APP_URL is known. */
   dashboardUrl: string | null;
@@ -48,19 +57,23 @@ function describe(event: AlertEvent) {
   const incident = event.incident;
   const diagnosis = incident ? diagnose(incident.cause, incident.httpStatus) : null;
   const downtimeMs = incident ? (incident.resolvedAt ?? new Date()).getTime() - incident.startedAt.getTime() : 0;
+  const slow = event.degradation ?? null;
+  const ratio = slow ? slow.recentMs / Math.max(slow.baselineMs, 1) : 0;
   const title =
     event.kind === "test"
       ? `Test alert for ${event.site.name}`
       : event.kind === "down"
         ? `${event.site.name} is down`
-        : `${event.site.name} recovered after ${formatDuration(downtimeMs)}`;
-  return { incident, diagnosis, downtimeMs, title };
+        : event.kind === "degraded" && slow
+          ? `${event.site.name} is slowing down: ${PHASE_INFO[slow.phase].label} ×${ratio.toFixed(1)}`
+          : `${event.site.name} recovered after ${formatDuration(downtimeMs)}`;
+  return { incident, diagnosis, downtimeMs, title, slow, ratio };
 }
 
 export function discordPayload(event: AlertEvent) {
-  const { incident, diagnosis, title } = describe(event);
-  const color = event.kind === "down" ? 0xdc2626 : event.kind === "up" ? 0x16a34a : 0x6b7280;
-  const icon = event.kind === "down" ? "🔴" : event.kind === "up" ? "🟢" : "🔔";
+  const { incident, diagnosis, title, slow } = describe(event);
+  const color = { down: 0xdc2626, up: 0x16a34a, degraded: 0xd97706, test: 0x6b7280 }[event.kind];
+  const icon = { down: "🔴", up: "🟢", degraded: "🟡", test: "🔔" }[event.kind];
 
   const fields = [{ name: "URL", value: event.site.url.slice(0, 1000) }];
   if (incident) {
@@ -82,7 +95,9 @@ export function discordPayload(event: AlertEvent) {
             ? "If you can read this, alerts for this channel work."
             : event.kind === "down" && diagnosis
               ? `**${diagnosis.title}**\n${diagnosis.hint}`
-              : "The site is responding normally again.",
+              : event.kind === "degraded" && slow
+                ? `**${PHASE_INFO[slow.phase].label}** takes ${Math.round(slow.recentMs)} ms instead of the usual ${Math.round(slow.baselineMs)} ms. The site is still up.\n${PHASE_INFO[slow.phase].hint}`
+                : "The site is responding normally again.",
         fields,
         timestamp: new Date().toISOString(),
       },
@@ -90,10 +105,12 @@ export function discordPayload(event: AlertEvent) {
   };
 }
 
+const WEBHOOK_TYPES = { down: "incident.opened", up: "incident.resolved", degraded: "site.degraded", test: "test" } as const;
+
 export function webhookPayload(event: AlertEvent) {
-  const { incident, diagnosis, downtimeMs, title } = describe(event);
+  const { incident, diagnosis, downtimeMs, title, slow, ratio } = describe(event);
   return {
-    type: event.kind === "test" ? "test" : event.kind === "down" ? "incident.opened" : "incident.resolved",
+    type: WEBHOOK_TYPES[event.kind],
     deliveryId: event.deliveryId,
     title,
     site: event.site,
@@ -107,6 +124,14 @@ export function webhookPayload(event: AlertEvent) {
       lastErrorMessage: incident.lastErrorMessage,
     },
     diagnosis,
+    degradation: slow && {
+      id: slow.id,
+      phase: slow.phase,
+      startedAt: slow.startedAt.toISOString(),
+      baselineMs: Math.round(slow.baselineMs),
+      recentMs: Math.round(slow.recentMs),
+      ratio: Number(ratio.toFixed(2)),
+    },
     dashboardUrl: event.dashboardUrl,
     sentAt: new Date().toISOString(),
   };

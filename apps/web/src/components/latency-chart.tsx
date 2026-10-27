@@ -20,9 +20,11 @@ const SERIES = [
 ] as const;
 
 const hourLabel = (t: number) => new Date(t).toISOString().slice(11, 16);
+const dayLabel = (t: number) => new Date(t).toISOString().slice(5, 10);
 
 /** Latency stacked by phase, so a jump shows *which* layer got slower. */
-export function LatencyChart({ data }: { data: LatencyPoint[] }) {
+export function LatencyChart({ data, span = "day" }: { data: LatencyPoint[]; span?: "day" | "multiday" }) {
+  const tick = span === "day" ? hourLabel : dayLabel;
   return (
     <div className="h-64 w-full">
       <ResponsiveContainer>
@@ -32,14 +34,16 @@ export function LatencyChart({ data }: { data: LatencyPoint[] }) {
             dataKey="t"
             type="number"
             domain={["dataMin", "dataMax"]}
-            tickFormatter={hourLabel}
+            tickFormatter={tick}
             tick={{ fill: "var(--muted)", fontSize: 11 }}
             stroke="var(--border)"
             tickCount={7}
           />
           <YAxis tick={{ fill: "var(--muted)", fontSize: 11 }} stroke="var(--border)" unit=" ms" width={64} />
           <Tooltip
-            labelFormatter={(t) => `${hourLabel(Number(t))} UTC`}
+            labelFormatter={(t) =>
+              span === "day" ? `${hourLabel(Number(t))} UTC` : `${dayLabel(Number(t))} ${hourLabel(Number(t))} UTC`
+            }
             formatter={(value, name) => [`${value} ms`, name]}
             contentStyle={{
               background: "var(--surface)",

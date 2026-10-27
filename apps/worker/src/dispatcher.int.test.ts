@@ -1,7 +1,18 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { encryptJson, verifyWebhook, type ProbeResult } from "@sitepulse/core";
-import { alertChannels, createDb, eq, notifications, siteAlertChannels, sites, sql, user, type Database } from "@sitepulse/db";
+import {
+  alertChannels,
+  createDb,
+  eq,
+  notifications,
+  siteAlertChannels,
+  siteDegradations,
+  sites,
+  sql,
+  user,
+  type Database,
+} from "@sitepulse/db";
 import { migrateDatabase } from "@sitepulse/db/migrate";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { backoffMs, dispatchOnce, type DispatcherOptions } from "./dispatcher";
@@ -164,6 +175,28 @@ describe.skipIf(!url)("alert dispatcher (Postgres integration)", () => {
     const [row] = await db.select().from(notifications);
     expect(row!.status).toBe("failed");
     expect(received).toHaveLength(0);
+  });
+
+  it("delivers degradation alerts with the slowed phase", async () => {
+    const [site] = await db.insert(sites).values({ ownerId: OWNER, name: "Shop", url: "https://shop.example.com/" }).returning();
+    const [channel] = await db
+      .insert(alertChannels)
+      .values({ ownerId: OWNER, type: "webhook", name: "hook", configEncrypted: encryptJson(KEY, { type: "webhook", url: `http://hooks.test:${port}/x`, secret: SECRET }) })
+      .returning();
+    const [degradation] = await db
+      .insert(siteDegradations)
+      .values({ siteId: site!.id, phase: "ttfb", startedAt: new Date(), baselineMs: 150, peakMs: 480 })
+      .returning();
+    await db.insert(notifications).values({ degradationId: degradation!.id, channelId: channel!.id, kind: "degraded" });
+
+    await dispatchOnce(db, options());
+    expect(received).toHaveLength(1);
+    expect(JSON.parse(received[0]!.body)).toMatchObject({
+      type: "site.degraded",
+      title: "Shop is slowing down: Server response (TTFB) ×3.2",
+      degradation: { phase: "ttfb", baselineMs: 150, recentMs: 480 },
+    });
+    expect((await db.select().from(notifications))[0]!.status).toBe("sent");
   });
 
   it("drops alerts whose site was deleted", async () => {

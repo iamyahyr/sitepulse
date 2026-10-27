@@ -4,32 +4,62 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Card, EmptyState } from "@/components/card";
+import { DegradationNotice } from "@/components/degradation-notice";
 import { LatencyChart, type LatencyPoint } from "@/components/latency-chart";
 import { PhaseWaterfall } from "@/components/phase-waterfall";
 import { StatusBadge } from "@/components/status-badge";
 import { buttonClass } from "@/components/ui";
 import { brokenPhase, chartPhases, checkPhases, intervalLabel } from "@/lib/checks";
 import { clockTime, duration, ms, relativeTime } from "@/lib/format";
-import { getSite, recentChecks, siteIncidents } from "@/server/dal/sites";
+import { getSite, openDegradations, recentChecks, siteIncidents, siteRollups } from "@/server/dal/sites";
 import { requireUser } from "@/server/session";
 
 export const metadata: Metadata = { title: "Site · SitePulse" };
 
 const DAY = 24 * 3_600_000;
 
-export default async function SitePage({ params }: PageProps<"/sites/[id]">) {
+const RANGES = {
+  "24h": { label: "24 h", days: 1 },
+  "7d": { label: "7 days", days: 7 },
+  "30d": { label: "30 days", days: 30 },
+} as const;
+type Range = keyof typeof RANGES;
+
+export default async function SitePage({ params, searchParams }: PageProps<"/sites/[id]">) {
   const { id } = await params;
+  const rangeParam = (await searchParams).range;
+  const range: Range = typeof rangeParam === "string" && rangeParam in RANGES ? (rangeParam as Range) : "24h";
   const user = await requireUser();
   const site = await getSite(user.id, id);
   if (!site) notFound();
 
-  const [checks, incidents] = await Promise.all([recentChecks(site.id, 300), siteIncidents(site.id)]);
   const now = new Date();
+  const [checks, incidents, rollups, degradations] = await Promise.all([
+    recentChecks(site.id, 300),
+    siteIncidents(site.id),
+    range === "24h" ? Promise.resolve([]) : siteRollups(site.id, new Date(now.getTime() - RANGES[range].days * DAY)),
+    openDegradations([site.id]),
+  ]);
   const latest = checks[0];
-  const chartData: LatencyPoint[] = checks
-    .filter((c) => c.success && now.getTime() - c.checkedAt.getTime() <= DAY)
-    .reverse()
-    .map((c) => ({ t: c.checkedAt.getTime(), ...chartPhases(c) }));
+  const degradation = degradations.get(site.id);
+  // 24 h: every raw check. 7/30 days: hourly medians from the rollups, so the
+  // chart stays fast and survives raw-check retention.
+  const chartData: LatencyPoint[] =
+    range === "24h"
+      ? checks
+          .filter((c) => c.success && now.getTime() - c.checkedAt.getTime() <= DAY)
+          .reverse()
+          .map((c) => ({ t: c.checkedAt.getTime(), ...chartPhases(c) }))
+      : rollups
+          .filter((r) => r.ok > 0)
+          .map((r) => ({
+            t: r.hour.getTime(),
+            dns: Math.round(r.p50DnsMs ?? 0),
+            connect: Math.round(r.p50ConnectMs ?? 0),
+            tls: Math.round(r.p50TlsMs ?? 0),
+            ttfb: Math.round(r.p50TtfbMs ?? 0),
+            download: Math.round(r.p50DownloadMs ?? 0),
+          }));
   const tlsDays = site.tlsExpiresAt ? Math.floor((site.tlsExpiresAt.getTime() - now.getTime()) / DAY) : null;
   const latestDiagnosis = latest && !latest.success && latest.errorCode ? diagnose(latest.errorCode as ErrorCode, latest.httpStatus) : null;
 
@@ -67,6 +97,8 @@ export default async function SitePage({ params }: PageProps<"/sites/[id]">) {
           Edit
         </Link>
       </div>
+
+      {degradation && <DegradationNotice degradation={degradation} now={now} />}
 
       {!latest ? (
         <Card title="Checks">
@@ -108,11 +140,30 @@ export default async function SitePage({ params }: PageProps<"/sites/[id]">) {
             </div>
           </Card>
 
-          <Card title="Response time by phase, last 24 h">
+          <Card
+            title={range === "24h" ? "Response time by phase, every check" : "Response time by phase, hourly median"}
+            action={
+              <nav aria-label="Time range" className="flex gap-1">
+                {(Object.keys(RANGES) as Range[]).map((key) => (
+                  <Link
+                    key={key}
+                    href={key === "24h" ? `/sites/${site.id}` : `/sites/${site.id}?range=${key}`}
+                    aria-current={key === range ? "page" : undefined}
+                    scroll={false}
+                    className={`rounded-md px-2 py-1 text-xs ${key === range ? "bg-surface-muted font-medium" : "text-muted hover:text-foreground"}`}
+                  >
+                    {RANGES[key].label}
+                  </Link>
+                ))}
+              </nav>
+            }
+          >
             {chartData.length > 1 ? (
-              <LatencyChart data={chartData} />
+              <LatencyChart data={chartData} span={range === "24h" ? "day" : "multiday"} />
             ) : (
-              <EmptyState title="Not enough successful checks yet" />
+              <EmptyState title={range === "24h" ? "Not enough successful checks yet" : "No hourly data yet"}>
+                {range !== "24h" && "Hourly medians are computed by the worker a few minutes after each hour ends."}
+              </EmptyState>
             )}
           </Card>
 

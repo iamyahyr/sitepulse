@@ -1,6 +1,7 @@
 import "server-only";
 import {
   and,
+  checkRollupsHourly,
   checks,
   count,
   desc,
@@ -8,8 +9,10 @@ import {
   inArray,
   incidentEvents,
   incidents,
+  gte,
   isNull,
   siteAlertChannels,
+  siteDegradations,
   sites,
   sql,
   type Database,
@@ -72,6 +75,26 @@ export async function latestChecks(siteIds: string[]): Promise<Map<string, Check
 
 export async function recentChecks(siteId: string, limit = 50) {
   return db().select().from(checks).where(eq(checks.siteId, siteId)).orderBy(desc(checks.checkedAt)).limit(limit);
+}
+
+/** Hourly aggregates since `from`, oldest first: feeds the 7- and 30-day charts. */
+export async function siteRollups(siteId: string, from: Date) {
+  return db()
+    .select()
+    .from(checkRollupsHourly)
+    .where(and(eq(checkRollupsHourly.siteId, siteId), gte(checkRollupsHourly.hour, from)))
+    .orderBy(checkRollupsHourly.hour);
+}
+
+export type Degradation = typeof siteDegradations.$inferSelect;
+
+export async function openDegradations(siteIds: string[]): Promise<Map<string, Degradation>> {
+  if (siteIds.length === 0) return new Map();
+  const rows = await db()
+    .select()
+    .from(siteDegradations)
+    .where(and(inArray(siteDegradations.siteId, siteIds), isNull(siteDegradations.resolvedAt)));
+  return new Map(rows.map((row) => [row.siteId, row]));
 }
 
 export async function siteIncidents(siteId: string, limit = 20) {

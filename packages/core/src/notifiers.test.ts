@@ -72,6 +72,20 @@ describe("payloads", () => {
     expect(payload.embeds[0]!.description).toContain("Bad gateway");
   });
 
+  it("explains degradations by phase", () => {
+    const slow: AlertEvent = {
+      ...downEvent,
+      kind: "degraded",
+      incident: null,
+      degradation: { id: "deg-1", phase: "ttfb", startedAt: new Date("2026-10-27T12:00:00Z"), baselineMs: 150, recentMs: 480 },
+    };
+    expect(discordPayload(slow).embeds[0]).toMatchObject({
+      title: "🟡 Shop @everyone is slowing down: Server response (TTFB) ×3.2",
+      description: expect.stringContaining("480 ms instead of the usual 150 ms"),
+    });
+    expect(webhookPayload(slow)).toMatchObject({ type: "site.degraded", degradation: { phase: "ttfb", ratio: 3.2 } });
+  });
+
   it("describes recoveries with their duration", () => {
     const up: AlertEvent = {
       ...downEvent,
