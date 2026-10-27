@@ -1,22 +1,18 @@
-import type { MockCheck } from "@/lib/mock";
+import type { HourBucket } from "@/server/dal/dashboard";
 
 /**
- * One segment per hour: green if every check passed, red if any failed.
- * Server-rendered SVG, no client JS.
+ * One segment per hour, oldest first: green if every check passed, red if any
+ * failed, grey without data. Server-rendered SVG, no client JS.
  */
-export function UptimeBar({ checks, hours = 48 }: { checks: MockCheck[]; hours?: number }) {
-  const last = checks.at(-1)?.at.getTime() ?? 0;
-  const buckets = Array.from({ length: hours }, () => ({ total: 0, failed: 0 }));
-  for (const check of checks) {
-    const index = hours - 1 - Math.floor((last - check.at.getTime()) / 3_600_000);
-    const bucket = buckets[index];
-    if (!bucket) continue;
-    bucket.total++;
-    if (!check.ok) bucket.failed++;
-  }
-
+export function UptimeBar({ buckets }: { buckets: HourBucket[] }) {
   return (
-    <svg viewBox={`0 0 ${hours * 4} 16`} className="h-4 w-full" preserveAspectRatio="none" role="img" aria-label={`Last ${hours} hours`}>
+    <svg
+      viewBox={`0 0 ${buckets.length * 4} 16`}
+      className="h-4 w-full"
+      preserveAspectRatio="none"
+      role="img"
+      aria-label={`Last ${buckets.length} hours`}
+    >
       {buckets.map((b, i) => (
         <rect
           key={i}

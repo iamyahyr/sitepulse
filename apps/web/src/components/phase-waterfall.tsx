@@ -1,4 +1,4 @@
-import type { Phases } from "@/lib/mock";
+import type { Phases } from "@/lib/checks";
 
 export const PHASES = [
   { key: "dns", label: "DNS", color: "bg-phase-dns" },

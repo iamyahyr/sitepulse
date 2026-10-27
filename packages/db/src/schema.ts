@@ -187,7 +187,7 @@ export const incidents = pgTable(
   ],
 );
 
-/** Timeline entries: opened, cause changes, resolved. */
+/** Timeline entries. "closed" = ended because monitoring was paused or the URL changed, not a real recovery. */
 export const incidentEvents = pgTable(
   "incident_events",
   {
@@ -196,7 +196,7 @@ export const incidentEvents = pgTable(
       .notNull()
       .references(() => incidents.id, { onDelete: "cascade" }),
     at: tz("at").notNull(),
-    type: text("type", { enum: ["opened", "cause_changed", "resolved"] }).notNull(),
+    type: text("type", { enum: ["opened", "cause_changed", "resolved", "closed"] }).notNull(),
     errorCode: text("error_code"),
   },
   (t) => [index("incident_events_incident_idx").on(t.incidentId, t.at)],

@@ -11,7 +11,8 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "db:generate": "pnpm --filter @sitepulse/db generate",
-    "db:migrate": "pnpm --filter @sitepulse/db migrate"
+    "db:migrate": "pnpm --filter @sitepulse/db migrate",
+    "db:seed": "pnpm --filter @sitepulse/db seed"
   },
   "devDependencies": {
     "@types/node": "^24",
