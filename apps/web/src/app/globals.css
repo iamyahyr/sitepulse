@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root {
+  --background: #f7f7f5;
+  --surface: #ffffff;
+  --surface-muted: #f0f0ed;
+  --border: #e4e4e0;
+  --foreground: #18181b;
+  --muted: #6b6b73;
+
+  --up: #16a34a;
+  --suspect: #d97706;
+  --down: #dc2626;
+  --unknown: #a1a1aa;
+
+  /* One hue per request phase, reused by the waterfall and the stacked chart. */
+  --phase-dns: #8b5cf6;
+  --phase-connect: #3b82f6;
+  --phase-tls: #06b6d4;
+  --phase-ttfb: #f59e0b;
+  --phase-download: #10b981;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #0c0c0e;
+    --surface: #141417;
+    --surface-muted: #1c1c20;
+    --border: #27272c;
+    --foreground: #ececef;
+    --muted: #9696a0;
+
+    --up: #22c55e;
+    --suspect: #f59e0b;
+    --down: #f87171;
+    --unknown: #71717a;
+
+    --phase-dns: #a78bfa;
+    --phase-connect: #60a5fa;
+    --phase-tls: #22d3ee;
+    --phase-ttfb: #fbbf24;
+    --phase-download: #34d399;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-up: var(--up);
+  --color-suspect: var(--suspect);
+  --color-down: var(--down);
+  --color-unknown: var(--unknown);
+  --color-phase-dns: var(--phase-dns);
+  --color-phase-connect: var(--phase-connect);
+  --color-phase-tls: var(--phase-tls);
+  --color-phase-ttfb: var(--phase-ttfb);
+  --color-phase-download: var(--phase-download);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}

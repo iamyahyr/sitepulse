@@ -1,0 +1,19 @@
+# Local development database: docker compose -f docker-compose.dev.yml up -d
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: sitepulse
+      POSTGRES_PASSWORD: sitepulse
+      POSTGRES_DB: sitepulse
+    ports:
+      - "127.0.0.1:5442:5432"
+    volumes:
+      - sitepulse-dev-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sitepulse"]
+      interval: 2s
+      retries: 30
+
+volumes:
+  sitepulse-dev-db:
