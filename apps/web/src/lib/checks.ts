@@ -1,11 +1,23 @@
 import { diagnose, type ErrorCode } from "@sitepulse/core";
 import type { checks } from "@sitepulse/db";
 
-export type Phases = { dns: number; connect: number; tls: number; ttfb: number; download: number };
+/** Milliseconds per phase; null when the phase never happened (no DNS for an IP, no TLS over http, failed earlier). */
+export type Phases = { dns: number | null; connect: number | null; tls: number | null; ttfb: number | null; download: number | null };
 
 type CheckRow = typeof checks.$inferSelect;
 
 export function checkPhases(check: CheckRow): Phases {
+  return {
+    dns: check.dnsMs,
+    connect: check.connectMs,
+    tls: check.tlsMs,
+    ttfb: check.ttfbMs,
+    download: check.downloadMs,
+  };
+}
+
+/** Stacked charts need numbers: a phase that did not happen contributes nothing. */
+export function chartPhases(check: CheckRow) {
   return {
     dns: check.dnsMs ?? 0,
     connect: check.connectMs ?? 0,

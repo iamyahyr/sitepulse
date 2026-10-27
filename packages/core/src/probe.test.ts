@@ -161,6 +161,19 @@ describe("probe DNS and SSRF handling", () => {
     expect(result.errorCode).toBe("DNS_NOT_FOUND");
   });
 
+  it.each([
+    ["ENODATA", "DNS_NOT_FOUND"],
+    ["ETIMEOUT", "DNS_TIMEOUT"],
+    ["ECONNREFUSED", "DNS_FAILED"],
+    ["ESERVFAIL", "DNS_FAILED"],
+  ])("maps resolver error %s to %s, never to a socket code", async (code, expected) => {
+    const resolver: Resolver = async () => {
+      throw Object.assign(new Error(`query ${code}`), { code });
+    };
+    const result = await probe("https://dns.test/", { ...base, resolver });
+    expect(result.errorCode).toBe(expected);
+  });
+
   it("times out slow resolvers", async () => {
     const resolver: Resolver = () => new Promise(() => {});
     const result = await probe("https://slow.test/", { ...base, resolver, timeoutMs: 100 });

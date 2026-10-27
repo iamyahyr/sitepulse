@@ -8,7 +8,7 @@ import { LatencyChart, type LatencyPoint } from "@/components/latency-chart";
 import { PhaseWaterfall } from "@/components/phase-waterfall";
 import { StatusBadge } from "@/components/status-badge";
 import { buttonClass } from "@/components/ui";
-import { brokenPhase, checkPhases, intervalLabel } from "@/lib/checks";
+import { brokenPhase, chartPhases, checkPhases, intervalLabel } from "@/lib/checks";
 import { clockTime, duration, ms, relativeTime } from "@/lib/format";
 import { getSite, recentChecks, siteIncidents } from "@/server/dal/sites";
 import { requireUser } from "@/server/session";
@@ -29,7 +29,7 @@ export default async function SitePage({ params }: PageProps<"/sites/[id]">) {
   const chartData: LatencyPoint[] = checks
     .filter((c) => c.success && now.getTime() - c.checkedAt.getTime() <= DAY)
     .reverse()
-    .map((c) => ({ t: c.checkedAt.getTime(), ...checkPhases(c) }));
+    .map((c) => ({ t: c.checkedAt.getTime(), ...chartPhases(c) }));
   const tlsDays = site.tlsExpiresAt ? Math.floor((site.tlsExpiresAt.getTime() - now.getTime()) / DAY) : null;
   const latestDiagnosis = latest && !latest.success && latest.errorCode ? diagnose(latest.errorCode as ErrorCode, latest.httpStatus) : null;
 

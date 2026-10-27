@@ -87,10 +87,32 @@ type HopOutcome = {
   error: { code: ErrorCode; message: string } | null;
 };
 
+/**
+ * Default resolver: c-ares (`dns.Resolver`), not `dns.lookup`. `lookup` runs
+ * getaddrinfo on libuv's 4-thread pool and cannot be cancelled, so when DNS
+ * hangs a few stuck lookups would block every other probe (and all file I/O).
+ * c-ares is asynchronous with its own timeout. It uses the system nameservers
+ * but not /etc/hosts, which is right for monitoring public sites.
+ */
+const resolver = new dns.Resolver({ timeout: 3_000, tries: 2 });
+
 export const systemResolver: Resolver = async (hostname) => {
-  const records = await dns.lookup(hostname, { all: true, verbatim: true });
-  return records.map((r) => ({ address: r.address, family: r.family === 6 ? 6 : 4 }));
+  const [v4, v6] = await Promise.allSettled([resolver.resolve4(hostname), resolver.resolve6(hostname)]);
+  const records: ResolvedAddress[] = [
+    ...(v4.status === "fulfilled" ? v4.value.map((address) => ({ address, family: 4 as const })) : []),
+    ...(v6.status === "fulfilled" ? v6.value.map((address) => ({ address, family: 6 as const })) : []),
+  ];
+  if (records.length === 0 && v4.status === "rejected") throw v4.reason;
+  return records;
 };
+
+/** DNS failures get DNS codes, even when the resolver's error looks like a socket one. */
+function classifyDnsError(err: unknown): ErrorCode {
+  const code = (err as { code?: string } | null)?.code ?? "";
+  if (code === "ENOTFOUND" || code === "ENODATA" || code === "NXDOMAIN") return "DNS_NOT_FOUND";
+  if (code === "ETIMEOUT" || code === "ETIMEDOUT") return "DNS_TIMEOUT";
+  return "DNS_FAILED";
+}
 
 const now = () => performance.now();
 const ms = (from: number | undefined, to: number | undefined) =>
@@ -105,7 +127,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | "ti
 }
 
 type Resolution =
-  | { ok: true; target: ResolvedAddress; dnsMs: number }
+  | { ok: true; target: ResolvedAddress; dnsMs: number | null }
   | { ok: false; code: ErrorCode; message: string; dnsMs: number | null };
 
 async function resolveTarget(
@@ -116,20 +138,14 @@ async function resolveTarget(
 ): Promise<Resolution> {
   const host = url.hostname.replace(/^\[|\]$/g, "");
   const literal = isIP(host);
-  if (literal) return { ok: true, target: { address: host, family: literal === 6 ? 6 : 4 }, dnsMs: 0 };
+  if (literal) return { ok: true, target: { address: host, family: literal === 6 ? 6 : 4 }, dnsMs: null };
 
   const started = now();
   let records: ResolvedAddress[] | "timeout";
   try {
     records = await withTimeout(resolver(host), budgetMs);
   } catch (err) {
-    const code = classifyNodeError(err);
-    return {
-      ok: false,
-      code: code === "UNKNOWN" ? "DNS_FAILED" : code,
-      message: (err as Error).message,
-      dnsMs: ms(started, now()),
-    };
+    return { ok: false, code: classifyDnsError(err), message: (err as Error).message, dnsMs: ms(started, now()) };
   }
   const dnsMs = Math.round(now() - started);
 

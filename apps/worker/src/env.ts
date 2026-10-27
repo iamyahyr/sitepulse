@@ -1,0 +1,35 @@
+import { hostname } from "node:os";
+import { z } from "zod";
+
+const bool = (fallback: boolean) =>
+  z
+    .enum(["true", "false", "1", "0", ""])
+    .optional()
+    .transform((v) => (v === undefined || v === "" ? fallback : v === "true" || v === "1"));
+
+const schema = z.object({
+  DATABASE_URL: z.url(),
+  /** Probes running at the same time in this process. */
+  WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(200).default(10),
+  /** How often to look for due sites. */
+  WORKER_POLL_MS: z.coerce.number().int().min(250).default(2_000),
+  WORKER_ID: z.string().min(1).default(`${hostname()}-${process.pid}`),
+  /** Dead-man's switch (e.g. healthchecks.io): pinged every minute while the worker is healthy. */
+  HEARTBEAT_URL: z.url().optional(),
+  ALLOW_PRIVATE_CIDRS: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? "").split(",").map((s) => s.trim()).filter(Boolean)),
+  RUN_MIGRATIONS: bool(true),
+});
+
+export type WorkerEnv = z.infer<typeof schema>;
+
+export function loadEnv(source: NodeJS.ProcessEnv = process.env): WorkerEnv {
+  const parsed = schema.safeParse(source);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`);
+    throw new Error(`Invalid environment variables:\n${issues.join("\n")}`);
+  }
+  return parsed.data;
+}
