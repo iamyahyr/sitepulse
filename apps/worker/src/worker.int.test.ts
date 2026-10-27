@@ -176,6 +176,7 @@ describe.skipIf(!url)("worker (Postgres integration)", () => {
         pollMs: 60_000,
         guard: { allowPrivateCidrs: ["127.0.0.0/8"] },
         connectivity: null,
+        alerts: null,
         probeOptions: { resolver: async () => [{ address: "127.0.0.1", family: 4 }] },
       });
 
@@ -207,6 +208,7 @@ describe.skipIf(!url)("worker (Postgres integration)", () => {
         pollMs: 60_000,
         guard: {},
         connectivity: null,
+        alerts: null,
         probeOptions: { resolver: async () => [{ address: "127.0.0.1", family: 4 }] },
       });
       await worker.tick();
@@ -251,6 +253,7 @@ describe.skipIf(!url)("worker (Postgres integration)", () => {
         pollMs: 60_000,
         guard: { allowPrivateCidrs: ["127.0.0.0/8"] },
         connectivity,
+        alerts: null,
         probeOptions: { resolver: async () => [{ address: "127.0.0.1", family: 4 }], timeoutMs: 2_000 },
       });
       return { worker, connectivity, net };

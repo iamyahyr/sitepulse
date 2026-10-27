@@ -28,6 +28,10 @@ const schema = z.object({
     .optional()
     .transform((v) => (v ?? "").split(",").map((s) => s.trim()).filter(Boolean)),
   RUN_MIGRATIONS: bool(true),
+  /** Same value as the web app: decrypts alert channel configs. */
+  SITEPULSE_SECRET_KEY: z.string().min(32, "SITEPULSE_SECRET_KEY must be at least 32 characters"),
+  /** Public URL of the web app, used for links in alerts. */
+  APP_URL: z.url().optional(),
   /**
    * Canaries for the self-connectivity guard. Unset = sensible public
    * defaults; set to an empty string to disable a kind of canary.

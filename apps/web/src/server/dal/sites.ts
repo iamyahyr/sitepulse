@@ -1,5 +1,19 @@
 import "server-only";
-import { and, checks, count, desc, eq, inArray, incidentEvents, incidents, isNull, sites, sql } from "@sitepulse/db";
+import {
+  and,
+  checks,
+  count,
+  desc,
+  eq,
+  inArray,
+  incidentEvents,
+  incidents,
+  isNull,
+  siteAlertChannels,
+  sites,
+  sql,
+  type Database,
+} from "@sitepulse/db";
 import { z } from "zod";
 import { db } from "@/server/db";
 import { env } from "@/server/env";
@@ -14,6 +28,16 @@ export type Site = typeof sites.$inferSelect;
 export type Check = typeof checks.$inferSelect;
 
 export class QuotaExceededError extends Error {}
+
+type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/** Replaces the site's alert channels. Callers pass ids already filtered to the owner's channels. */
+async function setChannels(tx: Tx, siteId: string, channelIds: string[]) {
+  await tx.delete(siteAlertChannels).where(eq(siteAlertChannels.siteId, siteId));
+  if (channelIds.length > 0) {
+    await tx.insert(siteAlertChannels).values(channelIds.map((channelId) => ({ siteId, channelId })));
+  }
+}
 
 const isUuid = (id: string) => z.uuid().safeParse(id).success;
 
@@ -59,7 +83,7 @@ export async function siteIncidents(siteId: string, limit = 20) {
     .limit(limit);
 }
 
-export async function createSite(ownerId: string, input: SiteInput): Promise<Site> {
+export async function createSite(ownerId: string, input: SiteInput, channelIds: string[] = []): Promise<Site> {
   return db().transaction(async (tx) => {
     // Serialize concurrent creates for this owner so the quota cannot be raced.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`sites:${ownerId}`}))`);
@@ -71,6 +95,7 @@ export async function createSite(ownerId: string, input: SiteInput): Promise<Sit
       .insert(sites)
       .values({ ...input, ownerId, nextCheckAt: new Date() })
       .returning();
+    await setChannels(tx, site!.id, channelIds);
     return site!;
   });
 }
@@ -82,7 +107,12 @@ export async function createSite(ownerId: string, input: SiteInput): Promise<Sit
  * Without this, a site whose URL changed while down would keep an incident
  * open forever, since the next success would start from "unknown".
  */
-export async function updateSite(ownerId: string, id: string, input: SiteInput): Promise<Site | null> {
+export async function updateSite(
+  ownerId: string,
+  id: string,
+  input: SiteInput,
+  channelIds: string[] = [],
+): Promise<Site | null> {
   if (!isUuid(id)) return null;
 
   return db().transaction(async (tx) => {
@@ -124,6 +154,7 @@ export async function updateSite(ownerId: string, id: string, input: SiteInput):
       })
       .where(eq(sites.id, id))
       .returning();
+    await setChannels(tx, id, channelIds);
     return site ?? null;
   });
 }

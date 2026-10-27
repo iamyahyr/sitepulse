@@ -20,6 +20,11 @@ async function main() {
     pollMs: env.WORKER_POLL_MS,
     guard: { allowPrivateCidrs: env.ALLOW_PRIVATE_CIDRS },
     heartbeatUrl: env.HEARTBEAT_URL,
+    alerts: {
+      secretKey: env.SITEPULSE_SECRET_KEY,
+      appUrl: env.APP_URL ?? null,
+      postOptions: { guard: { allowPrivateCidrs: env.ALLOW_PRIVATE_CIDRS } },
+    },
     connectivity:
       env.CONNECTIVITY_TCP_TARGETS.length || env.CONNECTIVITY_DNS_NAMES.length
         ? new ConnectivityMonitor({ tcpTargets: env.CONNECTIVITY_TCP_TARGETS, dnsNames: env.CONNECTIVITY_DNS_NAMES })

@@ -7,6 +7,7 @@ import {
   type ProbeOptions,
 } from "@sitepulse/core";
 import { sql, workerHeartbeats, type Database } from "@sitepulse/db";
+import { dispatchOnce, type DispatcherOptions } from "./dispatcher";
 import { log } from "./log";
 import { recordResult } from "./record";
 import { claimDueSites, deferSite, type ClaimedSite } from "./scheduler";
@@ -19,6 +20,8 @@ export type WorkerOptions = {
   pollMs: number;
   guard: GuardOptions;
   heartbeatUrl?: string;
+  /** Null disables alert delivery from this worker. */
+  alerts: DispatcherOptions | null;
   /** Null disables the self-connectivity guard. */
   connectivity: ConnectivityMonitor | null;
   /** Overrides for tests (resolver, CA…). */
@@ -42,6 +45,7 @@ export class Worker {
   private checksSinceHeartbeat = 0;
   private lastTickOk = false;
   private loggedOfflineReason: string | null = null;
+  private dispatching: Promise<unknown> | null = null;
 
   constructor(
     private readonly db: Database,
@@ -51,6 +55,7 @@ export class Worker {
   start() {
     this.stopped = false;
     this.scheduleTick(0);
+    this.scheduleDispatch(0);
     // Know our own connectivity from the start, so the dashboard can warn
     // right away instead of after the first failing site.
     void this.options.connectivity
@@ -70,7 +75,7 @@ export class Worker {
     this.stopped = true;
     for (const timer of this.timers) clearTimeout(timer);
     this.timers = [];
-    await Promise.allSettled([...this.inFlight]);
+    await Promise.allSettled([...this.inFlight, this.dispatching]);
     await this.heartbeat();
     log("info", "worker stopped", { workerId: this.options.workerId });
   }
@@ -103,6 +108,27 @@ export class Worker {
         log("error", "tick failed", { error: String(err) });
       }
       this.scheduleTick(this.options.pollMs);
+    }, delay);
+    this.timers.push(timer);
+  }
+
+  /** Alert delivery runs on its own loop so a slow webhook never delays checks. */
+  private scheduleDispatch(delay: number) {
+    const alerts = this.options.alerts;
+    if (this.stopped || !alerts) return;
+    const timer = setTimeout(async () => {
+      this.timers = this.timers.filter((t) => t !== timer);
+      try {
+        this.dispatching = dispatchOnce(this.db, alerts);
+        // Keep draining while there is a backlog.
+        const claimed = (await this.dispatching) as number;
+        this.dispatching = null;
+        this.scheduleDispatch(claimed > 0 ? 0 : this.options.pollMs);
+      } catch (err) {
+        this.dispatching = null;
+        log("error", "alert dispatch failed", { error: String(err) });
+        this.scheduleDispatch(this.options.pollMs);
+      }
     }, delay);
     this.timers.push(timer);
   }

@@ -72,6 +72,7 @@ export function readSiteForm(formData: FormData): SiteFormValues {
     timeoutMs: get("timeoutMs"),
     expectedStatus: get("expectedStatus"),
     enabled: get("enabled"),
+    channelIds: formData.getAll("channelIds").filter((v): v is string => typeof v === "string"),
   };
 }
 

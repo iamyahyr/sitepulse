@@ -9,7 +9,7 @@ const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, ready: true },
   { href: "/sites", label: "Sites", icon: Globe, ready: true },
   { href: "/incidents", label: "Incidents", icon: TriangleAlert, ready: false },
-  { href: "/alerts", label: "Alerts", icon: Bell, ready: false },
+  { href: "/alerts", label: "Alerts", icon: Bell, ready: true },
   { href: "/settings", label: "Settings", icon: Settings, ready: false },
 ] as const;
 

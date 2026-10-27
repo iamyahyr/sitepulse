@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SITE_DEFAULTS } from "@/lib/site-options";
+import { listChannels } from "@/server/dal/alerts";
 import { countSites } from "@/server/dal/sites";
 import { env } from "@/server/env";
 import { requireUser } from "@/server/session";
@@ -11,7 +12,7 @@ export const metadata: Metadata = { title: "Add site · SitePulse" };
 export default async function NewSitePage() {
   const user = await requireUser();
   const { MAX_SITES_PER_USER, MIN_INTERVAL_SEC } = env();
-  const used = await countSites(user.id);
+  const [used, channels] = await Promise.all([countSites(user.id), listChannels(user.id)]);
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -21,7 +22,9 @@ export default async function NewSitePage() {
       </p>
       <SiteForm
         action={createSiteAction}
-        initial={SITE_DEFAULTS}
+        // New sites alert every existing channel unless unticked.
+        initial={{ ...SITE_DEFAULTS, channelIds: channels.map((c) => c.id) }}
+        channels={channels}
         minIntervalSec={MIN_INTERVAL_SEC}
         submitLabel="Add site"
         cancelHref="/sites"

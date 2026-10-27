@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { SiteFormState } from "@/lib/site-options";
+import { ownedChannelIds } from "@/server/dal/alerts";
 import { QuotaExceededError, createSite, deleteSite, updateSite } from "@/server/dal/sites";
 import { env } from "@/server/env";
 import { requireUser } from "@/server/session";
@@ -20,7 +21,7 @@ export async function createSiteAction(_prev: SiteFormState, formData: FormData)
 
   let id: string;
   try {
-    id = (await createSite(user.id, parsed.data)).id;
+    id = (await createSite(user.id, parsed.data, await ownedChannelIds(user.id, values.channelIds))).id;
   } catch (err) {
     if (err instanceof QuotaExceededError) return { values, formError: err.message };
     throw err;
@@ -37,7 +38,7 @@ export async function updateSiteAction(id: string, _prev: SiteFormState, formDat
   const parsed = parseSiteInput(values);
   if (!parsed.ok) return { values, fieldErrors: parsed.fieldErrors };
 
-  const site = await updateSite(user.id, id, parsed.data);
+  const site = await updateSite(user.id, id, parsed.data, await ownedChannelIds(user.id, values.channelIds));
   if (!site) return { values, formError: "This site no longer exists." };
   revalidatePath("/", "layout");
   redirect(`/sites/${id}`);

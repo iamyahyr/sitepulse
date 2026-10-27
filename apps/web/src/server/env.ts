@@ -16,6 +16,8 @@ const schema = z.object({
   DATABASE_URL: z.url(),
   APP_URL: z.url().default("http://localhost:3000"),
   BETTER_AUTH_SECRET: z.string().min(32, "BETTER_AUTH_SECRET must be at least 32 characters"),
+  /** Encrypts alert channel configs at rest. Must match the worker's value. */
+  SITEPULSE_SECRET_KEY: z.string().min(32, "SITEPULSE_SECRET_KEY must be at least 32 characters"),
 
   /** Read-only public demo: every mutation is refused on the server. */
   DEMO_MODE: bool,

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { listChannels, siteChannelIds } from "@/server/dal/alerts";
 import { getSite } from "@/server/dal/sites";
 import { env } from "@/server/env";
 import { requireUser } from "@/server/session";
@@ -14,6 +15,7 @@ export default async function EditSitePage({ params }: PageProps<"/sites/[id]/ed
   const user = await requireUser();
   const site = await getSite(user.id, id);
   if (!site) notFound();
+  const [channels, linked] = await Promise.all([listChannels(user.id), siteChannelIds(site.id)]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-10">
@@ -32,7 +34,9 @@ export default async function EditSitePage({ params }: PageProps<"/sites/[id]/ed
             timeoutMs: String(site.timeoutMs),
             expectedStatus: site.expectedStatus,
             enabled: site.enabled ? "on" : "",
+            channelIds: linked,
           }}
+          channels={channels}
           minIntervalSec={Math.min(env().MIN_INTERVAL_SEC, site.intervalSec)}
           submitLabel="Save changes"
           cancelHref={`/sites/${site.id}`}

@@ -37,6 +37,24 @@ The worker (`apps/worker`) is a separate Node process, so checks keep running wi
 pnpm --filter @sitepulse/worker dev
 ```
 
+## Alerts
+
+One message when an incident opens and one when it resolves, through **Discord** or a **signed webhook** (Slack, n8n, ntfy, Zapier…). Alerts go through a transactional outbox: written in the same transaction that opens or resolves the incident, delivered by the worker with retries and exponential backoff, never duplicated per check. Channel settings are encrypted at rest with `SITEPULSE_SECRET_KEY` (same value in web and worker), and webhook URLs get the same SSRF protection as monitored sites.
+
+Webhook requests carry `X-SitePulse-Event`, `X-SitePulse-Delivery` (stable across retries, use it to de-duplicate) and `X-SitePulse-Signature: t=<unix>,v1=<hex>`, the HMAC-SHA256 of `` `${t}.${rawBody}` `` with the channel's secret:
+
+```js
+import { createHmac, timingSafeEqual } from "node:crypto";
+
+function verify(secret, rawBody, header, toleranceSec = 300) {
+  const { t, v1 } = Object.fromEntries(header.split(",").map((kv) => kv.split("=")));
+  if (Math.abs(Date.now() / 1000 - Number(t)) > toleranceSec) return false; // replay
+  const expected = createHmac("sha256", secret).update(`${t}.${rawBody}`).digest();
+  const given = Buffer.from(v1, "hex");
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
+```
+
 ## License
 
 [MIT](LICENSE)

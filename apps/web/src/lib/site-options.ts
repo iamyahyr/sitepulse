@@ -23,6 +23,7 @@ export const SITE_DEFAULTS = {
   timeoutMs: "10000",
   expectedStatus: "200-399",
   enabled: "on",
+  channelIds: [] as string[],
 };
 
 export type SiteFormValues = typeof SITE_DEFAULTS;

@@ -14,7 +14,9 @@ export function SiteForm({
   minIntervalSec,
   submitLabel,
   cancelHref,
+  channels,
 }: {
+  channels: { id: string; name: string; type: "discord" | "webhook" }[];
   action: Action;
   initial: SiteFormValues;
   minIntervalSec: number;
@@ -82,6 +84,33 @@ export function SiteForm({
           {...invalid("expectedStatus")}
         />
       </Field>
+
+      <fieldset className="grid gap-2">
+        <legend className="mb-1.5 text-sm font-medium">Alert channels</legend>
+        {channels.length === 0 ? (
+          <p className="text-muted text-xs">
+            No channels yet.{" "}
+            <Link href="/alerts" className="underline underline-offset-4">
+              Add Discord or a webhook
+            </Link>{" "}
+            to be notified when this site goes down and recovers.
+          </p>
+        ) : (
+          channels.map((channel) => (
+            <label key={channel.id} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="channelIds"
+                value={channel.id}
+                defaultChecked={values.channelIds.includes(channel.id)}
+                className="size-4"
+              />
+              {channel.name}
+              <span className="text-muted text-xs">{channel.type === "discord" ? "Discord" : "Webhook"}</span>
+            </label>
+          ))
+        )}
+      </fieldset>
 
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="enabled" defaultChecked={values.enabled === "on"} className="size-4" />

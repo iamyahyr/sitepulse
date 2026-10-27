@@ -126,11 +126,11 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | "ti
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
-type Resolution =
+export type Resolution =
   | { ok: true; target: ResolvedAddress; dnsMs: number | null }
   | { ok: false; code: ErrorCode; message: string; dnsMs: number | null };
 
-async function resolveTarget(
+export async function resolveTarget(
   url: URL,
   resolver: Resolver,
   guard: GuardOptions,
