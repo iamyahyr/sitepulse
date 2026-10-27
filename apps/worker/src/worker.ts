@@ -1,3 +1,4 @@
+import { utimes, writeFile } from "node:fs/promises";
 import {
   isNetworkLayerFailure,
   isSuppressed,
@@ -20,6 +21,8 @@ export type WorkerOptions = {
   pollMs: number;
   guard: GuardOptions;
   heartbeatUrl?: string;
+  /** Touched after every healthy heartbeat, for container health checks. */
+  healthFile?: string;
   /** Null disables alert delivery from this worker. */
   alerts: DispatcherOptions | null;
   /** Null disables the self-connectivity guard. */
@@ -208,6 +211,7 @@ export class Worker {
           target: workerHeartbeats.workerId,
           set: { ...fields, checksRun: sql`${workerHeartbeats.checksRun} + ${checks}` },
         });
+      if (this.options.healthFile && this.lastTickOk) await touch(this.options.healthFile);
     } catch (err) {
       this.checksSinceHeartbeat += checks;
       log("error", "heartbeat failed", { error: String(err) });
@@ -225,5 +229,14 @@ export class Worker {
     } catch (err) {
       log("warn", "external heartbeat ping failed", { error: String(err) });
     }
+  }
+}
+
+async function touch(path: string) {
+  const now = new Date();
+  try {
+    await utimes(path, now, now);
+  } catch {
+    await writeFile(path, "");
   }
 }

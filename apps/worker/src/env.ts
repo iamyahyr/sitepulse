@@ -8,6 +8,9 @@ const bool = (fallback: boolean) =>
     .optional()
     .transform((v) => (v === undefined || v === "" ? fallback : v === "true" || v === "1"));
 
+/** docker compose passes unset optional variables as "". */
+const emptyToUndefined = (v: unknown) => (v === "" ? undefined : v);
+
 const list = (fallback: readonly string[]) =>
   z
     .string()
@@ -22,16 +25,18 @@ const schema = z.object({
   WORKER_POLL_MS: z.coerce.number().int().min(250).default(2_000),
   WORKER_ID: z.string().min(1).default(`${hostname()}-${process.pid}`),
   /** Dead-man's switch (e.g. healthchecks.io): pinged every minute while the worker is healthy. */
-  HEARTBEAT_URL: z.url().optional(),
+  HEARTBEAT_URL: z.preprocess(emptyToUndefined, z.url().optional()),
   ALLOW_PRIVATE_CIDRS: z
     .string()
     .optional()
     .transform((v) => (v ?? "").split(",").map((s) => s.trim()).filter(Boolean)),
   RUN_MIGRATIONS: bool(true),
+  /** File touched while the worker is healthy; the Docker health check reads its age. */
+  HEALTH_FILE: z.string().optional(),
   /** Same value as the web app: decrypts alert channel configs. */
   SITEPULSE_SECRET_KEY: z.string().min(32, "SITEPULSE_SECRET_KEY must be at least 32 characters"),
   /** Public URL of the web app, used for links in alerts. */
-  APP_URL: z.url().optional(),
+  APP_URL: z.preprocess(emptyToUndefined, z.url().optional()),
   /**
    * Canaries for the self-connectivity guard. Unset = sensible public
    * defaults; set to an empty string to disable a kind of canary.

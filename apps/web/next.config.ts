@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const securityHeaders = [
@@ -8,6 +9,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // The Docker image sets NEXT_OUTPUT=standalone; `next start` needs the default output.
+  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
+  // Trace from the monorepo root so workspace packages land in the standalone bundle.
+  outputFileTracingRoot: path.join(import.meta.dirname, "../.."),
   // Every page is per-user and reads live monitoring data, so we use classic
   // request-time rendering rather than Cache Components.
   cacheComponents: false,

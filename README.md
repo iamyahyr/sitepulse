@@ -9,6 +9,28 @@ Self-hosted, open-source uptime monitoring that tells you **where and why** a si
 - **SSRF-hardened prober:** DNS answers are validated and pinned per hop, so rebinding and redirects to internal networks are blocked.
 - **No duplicate alerts:** incidents and notifications are written in one transaction (outbox pattern).
 
+## Self-hosting
+
+Requirements: a server with Docker and Docker Compose. Everything (Postgres, the worker and the web app) runs from `docker-compose.yml`.
+
+```bash
+git clone https://github.com/iamyahyr/sitepulse.git && cd sitepulse
+cp .env.example .env
+# Fill in POSTGRES_PASSWORD, BETTER_AUTH_SECRET and SITEPULSE_SECRET_KEY (openssl rand -hex 32 each)
+# and set APP_URL to the address you will use, e.g. https://status.example.com
+docker compose up -d --build
+```
+
+Open `APP_URL`, create the admin account on `/setup` (sign-up closes right after) and add your sites. The worker applies database migrations on start, and the web container only starts once the worker is healthy.
+
+- **Updating:** `git pull && docker compose up -d --build`. Migrations run automatically.
+- **Backups:** everything lives in the `postgres-data` volume, e.g. `docker compose exec postgres pg_dump -U sitepulse sitepulse > backup.sql`.
+- **HTTPS:** put SitePulse behind your reverse proxy (Caddy, Traefik, Nginx, or Dokploy's built-in one) and set `APP_URL` to the public `https://` address.
+- **Health checks:** the web container serves `GET /api/health` (checks the database); the worker is healthy while its heartbeat is fresh.
+- **Watching the watcher:** a monitor cannot report its own death. Set `HEARTBEAT_URL` to a [healthchecks.io](https://healthchecks.io) (or similar) ping URL to get alerted if the worker stops.
+- **Monitoring internal services:** private and loopback addresses are blocked by default (SSRF protection). Allow specific ranges with `ALLOW_PRIVATE_CIDRS=192.168.1.0/24`.
+- **Dokploy:** create a *Compose* application pointing at this repository, add the variables from `.env.example` in its Environment tab, and attach your domain to the `web` service on port 3000.
+
 ## Development
 
 ```bash

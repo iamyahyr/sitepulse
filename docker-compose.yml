@@ -1,0 +1,70 @@
+# Self-hosted SitePulse: Postgres + worker + web.
+#
+#   cp .env.example .env      # fill in the secrets
+#   docker compose up -d --build
+#
+# Then open APP_URL and create the admin account on /setup.
+
+name: sitepulse
+
+x-database-url: &database-url postgres://sitepulse:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/sitepulse
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sitepulse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: sitepulse
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sitepulse -d sitepulse"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Runs migrations on start, then checks sites and delivers alerts.
+  worker:
+    build:
+      context: .
+      target: worker
+    image: ghcr.io/iamyahyr/sitepulse-worker:${SITEPULSE_VERSION:-latest}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: *database-url
+      SITEPULSE_SECRET_KEY: ${SITEPULSE_SECRET_KEY:?Set SITEPULSE_SECRET_KEY in .env}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      HEARTBEAT_URL: ${HEARTBEAT_URL:-}
+      ALLOW_PRIVATE_CIDRS: ${ALLOW_PRIVATE_CIDRS:-}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-10}
+
+  web:
+    build:
+      context: .
+      target: web
+    image: ghcr.io/iamyahyr/sitepulse-web:${SITEPULSE_VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      # Healthy means migrations are applied and the scheduler is running.
+      worker:
+        condition: service_healthy
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: *database-url
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
+      SITEPULSE_SECRET_KEY: ${SITEPULSE_SECRET_KEY:?Set SITEPULSE_SECRET_KEY in .env}
+      ALLOW_PRIVATE_CIDRS: ${ALLOW_PRIVATE_CIDRS:-}
+      MAX_SITES_PER_USER: ${MAX_SITES_PER_USER:-50}
+      MIN_INTERVAL_SEC: ${MIN_INTERVAL_SEC:-60}
+      DEMO_MODE: ${DEMO_MODE:-false}
+
+volumes:
+  postgres-data:
