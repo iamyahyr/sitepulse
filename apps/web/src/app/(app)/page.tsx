@@ -59,7 +59,11 @@ function OpenIncidentCard({ open: { site, incident, lastFailed }, now }: { open:
         {lastFailed && (
           <div>
             <p className="text-muted mb-3 text-xs">Anatomy of the last failed check</p>
-            <PhaseWaterfall phases={checkPhases(lastFailed)} failedAt={brokenPhase(lastFailed.errorCode)} />
+            <PhaseWaterfall
+              phases={checkPhases(lastFailed)}
+              failedAt={brokenPhase(lastFailed.errorCode)}
+              totalMs={lastFailed.totalMs}
+            />
           </div>
         )}
       </div>

@@ -37,7 +37,7 @@ export default async function SitePage({ params, searchParams }: PageProps<"/sit
   const now = new Date();
   const [checks, incidents, rollups, degradations] = await Promise.all([
     recentChecks(site.id, 300),
-    siteIncidents(site.id),
+    siteIncidents(site.id, 10),
     range === "24h" ? Promise.resolve([]) : siteRollups(site.id, new Date(now.getTime() - RANGES[range].days * DAY)),
     openDegradations([site.id]),
   ]);
@@ -139,7 +139,11 @@ export default async function SitePage({ params, searchParams }: PageProps<"/sit
                   </>
                 )}
               </div>
-              <PhaseWaterfall phases={checkPhases(latest)} failedAt={latest.success ? undefined : brokenPhase(latest.errorCode)} />
+              <PhaseWaterfall
+                phases={checkPhases(latest)}
+                failedAt={latest.success ? undefined : brokenPhase(latest.errorCode)}
+                totalMs={latest.totalMs}
+              />
             </div>
           </Card>
 

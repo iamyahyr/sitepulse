@@ -10,11 +10,22 @@ export const PHASES = [
 
 /**
  * DevTools-style waterfall of a single check. A phase that never completed is
- * drawn hatched, which is exactly where the request broke.
+ * drawn hatched, which is exactly where the request broke. It spans the time
+ * the check actually waited (up to `totalMs`), so a 5 s timeout after a 1 ms
+ * connect looks like one.
  */
-export function PhaseWaterfall({ phases, failedAt }: { phases: Phases; failedAt?: keyof Phases }) {
+export function PhaseWaterfall({
+  phases,
+  failedAt,
+  totalMs,
+}: {
+  phases: Phases;
+  failedAt?: keyof Phases;
+  totalMs?: number;
+}) {
   const ms = (key: keyof Phases) => phases[key] ?? 0;
-  const total = Math.max(1, PHASES.reduce((sum, p) => sum + ms(p.key), 0));
+  const measured = PHASES.reduce((sum, p) => sum + ms(p.key), 0);
+  const total = Math.max(1, measured, failedAt ? (totalMs ?? 0) : 0);
   const starts = PHASES.map((_, i) => PHASES.slice(0, i).reduce((sum, p) => sum + ms(p.key), 0));
   const label = (value: number | null) => (value === null ? "—" : value < 1 ? "<1 ms" : `${value} ms`);
 
@@ -25,7 +36,7 @@ export function PhaseWaterfall({ phases, failedAt }: { phases: Phases; failedAt?
         const left = (starts[i]! / total) * 100;
         const broken = key === failedAt;
         return (
-          <div key={key} className="grid grid-cols-[7.5rem_1fr_3.5rem] items-center gap-3">
+          <div key={key} className="grid grid-cols-[7.5rem_1fr_4.5rem] items-center gap-3">
             <span className={broken ? "text-down font-semibold" : "text-muted"}>{name}</span>
             <div className="bg-surface-muted relative h-3 rounded-sm">
               {broken ? (
@@ -42,7 +53,9 @@ export function PhaseWaterfall({ phases, failedAt }: { phases: Phases; failedAt?
                 )
               )}
             </div>
-            <span className="text-right tabular-nums">{broken ? "✕" : label(phases[key])}</span>
+            <span className="text-right tabular-nums">
+              {broken ? (totalMs && totalMs - starts[i]! >= 1 ? `✕ ${Math.round(totalMs - starts[i]!)} ms` : "✕") : label(phases[key])}
+            </span>
           </div>
         );
       })}
