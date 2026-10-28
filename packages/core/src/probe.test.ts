@@ -209,6 +209,12 @@ describe("probe DNS and SSRF handling", () => {
     expect(calls).toBe(1);
   });
 
+  it("still blocks internal names whose address is outside the allowed ranges", async () => {
+    const resolver: Resolver = async () => [{ address: "10.0.0.7", family: 4 }];
+    const result = await probe("http://flaky:8080/", { resolver, guard: { allowPrivateCidrs: ["172.30.0.10/32"] } });
+    expect(result.errorCode).toBe("BLOCKED_ADDRESS");
+  });
+
   it("rejects disallowed URLs before any network activity", async () => {
     let called = false;
     const resolver: Resolver = async () => {

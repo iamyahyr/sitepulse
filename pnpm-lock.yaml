@@ -18,6 +18,15 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
+  apps/flaky:
+    dependencies:
+      '@sitepulse/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+
   apps/web:
     dependencies:
       '@sitepulse/core':
@@ -109,9 +118,6 @@ importers:
       drizzle-kit:
         specifier: ^0.31.11
         version: 0.31.11
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
 
 packages:
 

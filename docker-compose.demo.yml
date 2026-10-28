@@ -1,0 +1,38 @@
+# Public demo overlay: read-only, no login, sites served by the flaky service.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+#
+# Uses the same .env as a normal install (POSTGRES_PASSWORD, BETTER_AUTH_SECRET,
+# SITEPULSE_SECRET_KEY, APP_URL). Do not point it at a database with real data.
+
+services:
+  flaky:
+    build:
+      context: .
+      target: flaky
+    image: ghcr.io/iamyahyr/sitepulse-flaky:${SITEPULSE_VERSION:-latest}
+    restart: unless-stopped
+    networks:
+      default:
+        # Fixed address so the SSRF allowlist below can name exactly this host.
+        ipv4_address: 172.30.0.10
+
+  worker:
+    depends_on:
+      flaky:
+        condition: service_started
+    environment:
+      DEMO_MODE: "true"
+      DEMO_TARGET_URL: http://flaky:8080
+      # Only the flaky service is reachable on the private network, nothing else.
+      ALLOW_PRIVATE_CIDRS: 172.30.0.10/32
+
+  web:
+    environment:
+      DEMO_MODE: "true"
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

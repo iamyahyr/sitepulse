@@ -1,5 +1,6 @@
 export * from "./connectivity";
 export * from "./degradation";
+export * from "./demo-scenarios";
 export * from "./diagnosis";
 export * from "./incidents";
 export * from "./notifiers";

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { SITE_DEFAULTS } from "@/lib/site-options";
 import { listChannels } from "@/server/dal/alerts";
 import { countSites } from "@/server/dal/sites";
@@ -11,7 +12,8 @@ export const metadata: Metadata = { title: "Add site · SitePulse" };
 
 export default async function NewSitePage() {
   const user = await requireUser();
-  const { MAX_SITES_PER_USER, MIN_INTERVAL_SEC } = env();
+  const { MAX_SITES_PER_USER, MIN_INTERVAL_SEC, DEMO_MODE } = env();
+  if (DEMO_MODE) redirect("/sites");
   const [used, channels] = await Promise.all([countSites(user.id), listChannels(user.id)]);
 
   return (

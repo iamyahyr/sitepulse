@@ -11,6 +11,7 @@ export type Database = ReturnType<typeof createDb>;
 
 export { schema };
 export * from "./schema";
+export { DEMO_USER } from "./demo-user";
 
 // Re-exported so apps use the exact drizzle-orm instance the schema was built
 // with (pnpm can otherwise resolve a second copy through better-auth's peers).

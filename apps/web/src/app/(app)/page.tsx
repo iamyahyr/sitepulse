@@ -10,6 +10,7 @@ import { UptimeBar } from "@/components/uptime-bar";
 import { brokenPhase, checkPhases } from "@/lib/checks";
 import { clockTime, duration, ms, relativeTime } from "@/lib/format";
 import { getDashboard, type OpenIncident } from "@/server/dal/dashboard";
+import { env } from "@/server/env";
 import { requireUser } from "@/server/session";
 
 const UPTIME_METHOD =
@@ -135,10 +136,12 @@ export default async function DashboardPage() {
         <Card title="Get started">
           <EmptyState title="No sites yet">
             <p className="mb-4">Add a site and SitePulse starts checking it right away.</p>
-            <Link href="/sites/new" className={buttonClass()}>
-              <Plus className="size-4" aria-hidden />
-              Add site
-            </Link>
+            {!env().DEMO_MODE && (
+              <Link href="/sites/new" className={buttonClass()}>
+                <Plus className="size-4" aria-hidden />
+                Add site
+              </Link>
+            )}
           </EmptyState>
         </Card>
       ) : (

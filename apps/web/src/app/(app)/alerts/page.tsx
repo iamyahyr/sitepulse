@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Card, EmptyState } from "@/components/card";
 import { relativeTime } from "@/lib/format";
 import { listChannels, recentDeliveries } from "@/server/dal/alerts";
+import { env } from "@/server/env";
 import { requireUser } from "@/server/session";
 import { ChannelActions } from "./channel-actions";
 import { ChannelForm } from "./channel-form";
@@ -19,6 +20,7 @@ export default async function AlertsPage() {
   const user = await requireUser();
   const [channels, deliveries] = await Promise.all([listChannels(user.id), recentDeliveries(user.id)]);
   const now = new Date();
+  const demo = env().DEMO_MODE;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -49,7 +51,7 @@ export default async function AlertsPage() {
                   </p>
                   <p className="text-muted truncate font-mono text-xs">{channel.hint}</p>
                 </div>
-                <ChannelActions id={channel.id} name={channel.name} />
+                {!demo && <ChannelActions id={channel.id} name={channel.name} />}
               </li>
             ))}
           </ul>
@@ -57,7 +59,14 @@ export default async function AlertsPage() {
       </Card>
 
       <Card title="Add a channel">
-        <ChannelForm />
+        {demo ? (
+          <p className="text-muted text-sm">
+            Alert channels are disabled in the demo. Self-hosted, you can connect Discord or any webhook (Slack, n8n,
+            ntfy…) and get one message when an incident opens, one when it resolves and one when a site slows down.
+          </p>
+        ) : (
+          <ChannelForm />
+        )}
       </Card>
 
       <Card title="Recent deliveries">

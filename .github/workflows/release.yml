@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [web, worker]
+        target: [web, worker, flaky]
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3

@@ -31,6 +31,9 @@ const schema = z.object({
     .optional()
     .transform((v) => (v ?? "").split(",").map((s) => s.trim()).filter(Boolean)),
   RUN_MIGRATIONS: bool(true),
+  /** Public demo: create the visitor account and demo sites against DEMO_TARGET_URL on start. */
+  DEMO_MODE: bool(false),
+  DEMO_TARGET_URL: z.preprocess(emptyToUndefined, z.url().optional()),
   /** Raw checks older than this are deleted; hourly rollups keep the history. */
   CHECK_RETENTION_DAYS: z.coerce.number().int().min(2).default(30),
   ROLLUP_RETENTION_DAYS: z.coerce.number().int().min(7).default(400),
@@ -57,6 +60,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): WorkerEnv {
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`);
     throw new Error(`Invalid environment variables:\n${issues.join("\n")}`);
+  }
+  if (parsed.data.DEMO_MODE && !parsed.data.DEMO_TARGET_URL) {
+    throw new Error("DEMO_MODE=true requires DEMO_TARGET_URL (the flaky service, e.g. http://flaky:8080)");
   }
   return parsed.data;
 }

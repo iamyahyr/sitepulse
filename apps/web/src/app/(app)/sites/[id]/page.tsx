@@ -12,6 +12,7 @@ import { buttonClass } from "@/components/ui";
 import { brokenPhase, chartPhases, checkPhases, intervalLabel } from "@/lib/checks";
 import { clockTime, duration, ms, relativeTime } from "@/lib/format";
 import { getSite, openDegradations, recentChecks, siteIncidents, siteRollups } from "@/server/dal/sites";
+import { env } from "@/server/env";
 import { requireUser } from "@/server/session";
 
 export const metadata: Metadata = { title: "Site · SitePulse" };
@@ -92,10 +93,12 @@ export default async function SitePage({ params, searchParams }: PageProps<"/sit
               .join(" · ")}
           </p>
         </div>
-        <Link href={`/sites/${site.id}/edit`} className={buttonClass("secondary")}>
-          <Pencil className="size-4" aria-hidden />
-          Edit
-        </Link>
+        {!env().DEMO_MODE && (
+          <Link href={`/sites/${site.id}/edit`} className={buttonClass("secondary")}>
+            <Pencil className="size-4" aria-hidden />
+            Edit
+          </Link>
+        )}
       </div>
 
       {degradation && <DegradationNotice degradation={degradation} now={now} />}

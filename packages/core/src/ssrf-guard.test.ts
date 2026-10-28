@@ -60,6 +60,16 @@ describe("checkUrl", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("leaves internal names to the DNS check once private ranges are allowed", () => {
+    const options = { allowPrivateCidrs: ["172.30.0.10/32"] };
+    expect(checkUrl("http://flaky:8080/shop", options).ok).toBe(true);
+    expect(checkUrl("http://nas.local/", options).ok).toBe(true);
+    // Literal IPs are still judged immediately against the allowlist.
+    expect(checkUrl("http://172.30.0.10:8080/", options).ok).toBe(true);
+    expect(checkUrl("http://172.30.0.11:8080/", options)).toEqual({ ok: false, reason: "BLOCKED_ADDRESS" });
+    expect(checkUrl("http://169.254.169.254/", options)).toEqual({ ok: false, reason: "BLOCKED_ADDRESS" });
+  });
+
   it.each([
     ["not a url", "INVALID_URL"],
     ["ftp://example.com", "UNSUPPORTED_PROTOCOL"],

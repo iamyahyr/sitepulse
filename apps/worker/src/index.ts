@@ -1,6 +1,7 @@
 import { ConnectivityMonitor } from "@sitepulse/core";
 import { createDb } from "@sitepulse/db";
 import { migrateDatabase } from "@sitepulse/db/migrate";
+import { ensureDemo } from "./demo";
 import { loadEnv } from "./env";
 import { log } from "./log";
 import { Worker } from "./worker";
@@ -14,6 +15,7 @@ async function main() {
   }
 
   const db = createDb(env.DATABASE_URL, { max: env.WORKER_CONCURRENCY + 2 });
+  if (env.DEMO_MODE) await ensureDemo(db, env.DEMO_TARGET_URL!);
   const worker = new Worker(db, {
     workerId: env.WORKER_ID,
     concurrency: env.WORKER_CONCURRENCY,

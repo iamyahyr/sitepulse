@@ -86,10 +86,14 @@ export function checkUrl(raw: string, options: GuardOptions = {}): UrlCheck {
     return isBlockedAddress(host, options) ? { ok: false, reason: "BLOCKED_ADDRESS" } : { ok: true, url };
   }
 
+  // Name-based rejections are only an early, friendly error: the real check
+  // happens on every resolved address. Once an operator allows private
+  // ranges, internal names (Docker services, "nas", *.local) are legitimate
+  // and the resolved IP still has to fall inside an allowed range.
+  const allowsPrivate = (options.allowPrivateCidrs?.length ?? 0) > 0;
   if (
-    host === "localhost" ||
-    !host.includes(".") ||
-    BLOCKED_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix))
+    !allowsPrivate &&
+    (host === "localhost" || !host.includes(".") || BLOCKED_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix)))
   ) {
     return { ok: false, reason: "BLOCKED_HOSTNAME" };
   }

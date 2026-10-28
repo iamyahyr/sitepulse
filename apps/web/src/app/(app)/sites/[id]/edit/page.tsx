@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { listChannels, siteChannelIds } from "@/server/dal/alerts";
 import { getSite } from "@/server/dal/sites";
 import { env } from "@/server/env";
@@ -12,6 +12,7 @@ export const metadata: Metadata = { title: "Edit site · SitePulse" };
 
 export default async function EditSitePage({ params }: PageProps<"/sites/[id]/edit">) {
   const { id } = await params;
+  if (env().DEMO_MODE) redirect(`/sites/${id}`);
   const user = await requireUser();
   const site = await getSite(user.id, id);
   if (!site) notFound();

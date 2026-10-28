@@ -31,6 +31,27 @@ Open `APP_URL`, create the admin account on `/setup` (sign-up closes right after
 - **Monitoring internal services:** private and loopback addresses are blocked by default (SSRF protection). Allow specific ranges with `ALLOW_PRIVATE_CIDRS=192.168.1.0/24`.
 - **Dokploy:** create a *Compose* application pointing at this repository, add the variables from `.env.example` in its Environment tab, and attach your domain to the `web` service on port 3000.
 
+## Public demo
+
+A read-only instance anyone can open without an account. The demo sites are served by `apps/flaky`, a small service that fails on purpose on a fixed UTC schedule:
+
+| Site | Scenario | What SitePulse shows |
+| --- | --- | --- |
+| Portfolio | Always healthy | Baseline |
+| Sample Shop | 502 for 5 minutes every 4 hours | Incident, "Bad gateway: proxy up, backend down", alerts |
+| Store API | Hangs for 7 minutes every 6 hours | Incident with a TTFB timeout in the waterfall |
+| Blog | 5× slower for one hour every 4 hours | "Slower than usual: Server response (TTFB)" warning, no outage |
+
+Checks run every minute, so incidents open and close while visitors watch. On first start the worker backfills a week of history generated from the same schedule and pushed through the real incident state machine, so the past and the live data agree.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+```
+
+In demo mode every visitor browses as a built-in account with no password or session, every write is refused on the server, and the SSRF allowlist opens exactly one private address: the flaky service (`172.30.0.10/32`). Run it on its own database.
+
+For local development, `pnpm --filter @sitepulse/flaky dev` serves the scenarios on `:8080` and `pnpm db:seed you@example.com` adds the demo sites with their history to your account (run the worker with `ALLOW_PRIVATE_CIDRS=127.0.0.0/8`).
+
 ## Development
 
 ```bash
@@ -40,7 +61,7 @@ cp apps/web/.env.example apps/web/.env.local     # then set BETTER_AUTH_SECRET
 cp apps/worker/.env.example apps/worker/.env
 pnpm db:migrate
 pnpm dev                                         # web + worker; open /setup to create the admin account
-pnpm db:seed you@example.com                     # optional: 7 days of demo history
+pnpm db:seed you@example.com                     # optional: demo sites + 7 days of history
 pnpm test                                        # set TEST_DATABASE_URL to also run the worker's Postgres tests
 ```
 

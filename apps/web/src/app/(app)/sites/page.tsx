@@ -17,7 +17,7 @@ export default async function SitesPage() {
   const sites = await listSites(user.id);
   const latest = await latestChecks(sites.map((s) => s.id));
   const now = new Date();
-  const { MAX_SITES_PER_USER } = env();
+  const { MAX_SITES_PER_USER, DEMO_MODE } = env();
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -28,7 +28,7 @@ export default async function SitesPage() {
             {sites.length}/{MAX_SITES_PER_USER} sites monitored
           </p>
         </div>
-        {sites.length < MAX_SITES_PER_USER && (
+        {!DEMO_MODE && sites.length < MAX_SITES_PER_USER && (
           <Link href="/sites/new" className={buttonClass()}>
             <Plus className="size-4" aria-hidden />
             Add site

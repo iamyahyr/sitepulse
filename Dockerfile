@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1.7
 #
-# One Dockerfile, two images:
+# One Dockerfile, three images:
 #   docker build --target web    -t sitepulse-web .
 #   docker build --target worker -t sitepulse-worker .
+#   docker build --target flaky  -t sitepulse-flaky .   (public demo only)
 
 ARG NODE_VERSION=24-alpine
 
@@ -16,6 +17,7 @@ FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY apps/web/package.json apps/web/
 COPY apps/worker/package.json apps/worker/
+COPY apps/flaky/package.json apps/flaky/
 COPY packages/core/package.json packages/core/
 COPY packages/db/package.json packages/db/
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile
@@ -28,7 +30,8 @@ RUN pnpm --filter @sitepulse/web build
 # A self-contained copy of the worker with production dependencies only,
 # workspace packages (core, db + migrations) included.
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm --filter @sitepulse/worker deploy --legacy --prod /out/worker
+    pnpm --filter @sitepulse/worker deploy --legacy --prod /out/worker && \
+    pnpm --filter @sitepulse/flaky deploy --legacy --prod /out/flaky
 
 # ─── Web: Next.js standalone server ──────────────────────────────────────
 FROM node:${NODE_VERSION} AS web
@@ -54,4 +57,13 @@ USER node
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD test -f "$HEALTH_FILE" && test $(( $(date +%s) - $(stat -c %Y "$HEALTH_FILE") )) -lt 90 || exit 1
 # Node forwards SIGTERM to the worker itself (no shell), so shutdown is graceful.
+CMD ["node", "--import", "tsx", "src/index.ts"]
+
+# ─── Flaky: the deliberately unreliable service behind the public demo ───
+FROM node:${NODE_VERSION} AS flaky
+WORKDIR /app
+ENV NODE_ENV=production PORT=8080
+COPY --from=build --chown=node:node /out/flaky ./
+USER node
+EXPOSE 8080
 CMD ["node", "--import", "tsx", "src/index.ts"]
