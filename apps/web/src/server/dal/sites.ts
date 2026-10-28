@@ -77,6 +77,15 @@ export async function recentChecks(siteId: string, limit = 50) {
   return db().select().from(checks).where(eq(checks.siteId, siteId)).orderBy(desc(checks.checkedAt)).limit(limit);
 }
 
+/** Successful checks since `from`, oldest first: feeds the 24-hour chart. */
+export async function successfulChecksSince(siteId: string, from: Date) {
+  return db()
+    .select()
+    .from(checks)
+    .where(and(eq(checks.siteId, siteId), eq(checks.success, true), gte(checks.checkedAt, from)))
+    .orderBy(checks.checkedAt);
+}
+
 /** Hourly aggregates since `from`, oldest first: feeds the 7- and 30-day charts. */
 export async function siteRollups(siteId: string, from: Date) {
   return db()
@@ -125,7 +134,7 @@ export async function createSite(ownerId: string, input: SiteInput, channelIds: 
 
 /**
  * Updates a site. Changing the URL or pausing monitoring ends the current
- * health streak: an open incident is closed (as "closed", not "resolved", so
+ * health streak (and changing the URL or resuming restarts the uptime window): an open incident is closed (as "closed", not "resolved", so
  * it is not reported as a recovery) and the state machine starts over.
  * Without this, a site whose URL changed while down would keep an incident
  * open forever, since the next success would start from "unknown".
@@ -148,6 +157,8 @@ export async function updateSite(
 
     const now = new Date();
     const resetHealth = current.url !== input.url || (current.enabled && !input.enabled);
+    // Uptime restarts with the new URL or on resume: it must not credit the paused time.
+    const restartMonitoring = current.url !== input.url || (!current.enabled && input.enabled);
     const reschedule =
       resetHealth || current.intervalSec !== input.intervalSec || (!current.enabled && input.enabled);
 
@@ -174,6 +185,7 @@ export async function updateSite(
           tlsExpiresAt: null,
         }),
         ...(reschedule && { nextCheckAt: now }),
+        ...(restartMonitoring && { monitoredSince: now }),
       })
       .where(eq(sites.id, id))
       .returning();

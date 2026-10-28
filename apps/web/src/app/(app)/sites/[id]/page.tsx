@@ -11,7 +11,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { buttonClass } from "@/components/ui";
 import { brokenPhase, chartPhases, checkPhases, intervalLabel } from "@/lib/checks";
 import { clockTime, duration, ms, relativeTime } from "@/lib/format";
-import { getSite, openDegradations, recentChecks, siteIncidents, siteRollups } from "@/server/dal/sites";
+import { getSite, openDegradations, recentChecks, siteIncidents, siteRollups, successfulChecksSince } from "@/server/dal/sites";
 import { env } from "@/server/env";
 import { requireUser } from "@/server/session";
 
@@ -35,10 +35,12 @@ export default async function SitePage({ params, searchParams }: PageProps<"/sit
   if (!site) notFound();
 
   const now = new Date();
-  const [checks, incidents, rollups, degradations] = await Promise.all([
-    recentChecks(site.id, 300),
+  const from = new Date(now.getTime() - RANGES[range].days * DAY);
+  const [checks, incidents, dayChecks, rollups, degradations] = await Promise.all([
+    recentChecks(site.id, 12),
     siteIncidents(site.id, 10),
-    range === "24h" ? Promise.resolve([]) : siteRollups(site.id, new Date(now.getTime() - RANGES[range].days * DAY)),
+    range === "24h" ? successfulChecksSince(site.id, from) : Promise.resolve([]),
+    range === "24h" ? Promise.resolve([]) : siteRollups(site.id, from),
     openDegradations([site.id]),
   ]);
   const latest = checks[0];
@@ -47,10 +49,7 @@ export default async function SitePage({ params, searchParams }: PageProps<"/sit
   // chart stays fast and survives raw-check retention.
   const chartData: LatencyPoint[] =
     range === "24h"
-      ? checks
-          .filter((c) => c.success && now.getTime() - c.checkedAt.getTime() <= DAY)
-          .reverse()
-          .map((c) => ({ t: c.checkedAt.getTime(), ...chartPhases(c) }))
+      ? dayChecks.map((c) => ({ t: c.checkedAt.getTime(), ...chartPhases(c) }))
       : rollups
           .filter((r) => r.ok > 0)
           .map((r) => ({
@@ -177,7 +176,7 @@ export default async function SitePage({ params, searchParams }: PageProps<"/sit
           <div className="grid gap-6 lg:grid-cols-2">
             <Card title="Recent checks">
               <ul className="-my-2 text-sm">
-                {checks.slice(0, 12).map((check) => (
+                {checks.map((check) => (
                   <li key={check.id} className="border-border flex items-center gap-3 border-b py-2 last:border-0">
                     <span className={`size-2 shrink-0 rounded-full ${check.success ? "bg-up" : "bg-down"}`} />
                     <span className="text-muted w-20 font-mono text-xs">{clockTime(check.checkedAt)}</span>

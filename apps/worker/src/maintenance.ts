@@ -5,6 +5,7 @@ import {
   checks,
   eq,
   gte,
+  inArray,
   isNull,
   lt,
   ne,
@@ -131,6 +132,16 @@ function collect<T>(rows: T[], pick: (row: T, phase: Phase) => number | null): P
   return samples;
 }
 
+function bySite<T extends { siteId: string }>(rows: T[]): Map<string, T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const row of rows) {
+    const list = grouped.get(row.siteId);
+    if (list) list.push(row);
+    else grouped.set(row.siteId, [row]);
+  }
+  return grouped;
+}
+
 export type DegradationEvent =
   | { type: "opened"; siteId: string; phase: Phase; baselineMs: number; recentMs: number }
   | { type: "resolved"; siteId: string; phase: Phase };
@@ -162,16 +173,64 @@ export async function evaluateDegradations(db: Database, now = new Date()): Prom
     .leftJoin(siteDegradations, and(eq(siteDegradations.siteId, sites.id), isNull(siteDegradations.resolvedAt)))
     .where(and(eq(sites.enabled, true), ne(sites.state, "down"), ne(sites.state, "unknown")));
 
-  for (const site of healthy) {
-    const windowMs = Math.max(HOUR, site.intervalSec * 4 * 1000);
-    const windowStart = new Date(now.getTime() - windowMs);
-    const baselineStart = new Date(windowStart.getTime() - BASELINE_DAYS * 24 * HOUR);
+  if (healthy.length === 0) return events;
 
-    const recentRows = await db
-      .select({ dns: checks.dnsMs, connect: checks.connectMs, tls: checks.tlsMs, ttfb: checks.ttfbMs, download: checks.downloadMs })
+  // Two queries for all sites instead of two per site: fetch the widest
+  // window any site needs, then cut each site's own window in memory.
+  const windows = new Map(
+    healthy.map((site) => {
+      const windowStart = new Date(now.getTime() - Math.max(HOUR, site.intervalSec * 4 * 1000));
+      return [site.id, { windowStart, baselineStart: new Date(windowStart.getTime() - BASELINE_DAYS * 24 * HOUR) }];
+    }),
+  );
+  const starts = [...windows.values()];
+  const earliestWindow = new Date(Math.min(...starts.map((w) => w.windowStart.getTime())));
+  const latestWindow = new Date(Math.max(...starts.map((w) => w.windowStart.getTime())));
+  const earliestBaseline = new Date(Math.min(...starts.map((w) => w.baselineStart.getTime())));
+
+  const recentRows = bySite(
+    await db
+      .select({
+        siteId: checks.siteId,
+        checkedAt: checks.checkedAt,
+        dns: checks.dnsMs,
+        connect: checks.connectMs,
+        tls: checks.tlsMs,
+        ttfb: checks.ttfbMs,
+        download: checks.downloadMs,
+      })
       .from(checks)
-      .where(and(eq(checks.siteId, site.id), eq(checks.success, true), gte(checks.checkedAt, windowStart)));
-    const recent = collect(recentRows, (row, phase) => row[phase]);
+      .where(
+        and(
+          inArray(checks.siteId, healthy.map((s) => s.id)),
+          eq(checks.success, true),
+          gte(checks.checkedAt, earliestWindow),
+        ),
+      ),
+  );
+
+  const needBaseline = healthy.filter((s) => !s.open).map((s) => s.id);
+  const baselineRows = bySite(
+    needBaseline.length === 0
+      ? []
+      : await db
+          .select({ siteId: checkRollupsHourly.siteId, hour: checkRollupsHourly.hour, ...ROLLUP_PHASE_COLUMNS })
+          .from(checkRollupsHourly)
+          .where(
+            and(
+              inArray(checkRollupsHourly.siteId, needBaseline),
+              gte(checkRollupsHourly.hour, earliestBaseline),
+              lt(checkRollupsHourly.hour, latestWindow),
+            ),
+          ),
+  );
+
+  for (const site of healthy) {
+    const { windowStart, baselineStart } = windows.get(site.id)!;
+    const recent = collect(
+      (recentRows.get(site.id) ?? []).filter((row) => row.checkedAt >= windowStart),
+      (row, phase) => row[phase],
+    );
 
     if (site.open) {
       const current = median(recent[site.open.phase] ?? []);
@@ -184,17 +243,10 @@ export async function evaluateDegradations(db: Database, now = new Date()): Prom
       continue;
     }
 
-    const baselineRows = await db
-      .select(ROLLUP_PHASE_COLUMNS)
-      .from(checkRollupsHourly)
-      .where(
-        and(
-          eq(checkRollupsHourly.siteId, site.id),
-          gte(checkRollupsHourly.hour, baselineStart),
-          lt(checkRollupsHourly.hour, windowStart),
-        ),
-      );
-    const baseline = collect(baselineRows, (row, phase) => row[phase]);
+    const baseline = collect(
+      (baselineRows.get(site.id) ?? []).filter((row) => row.hour >= baselineStart && row.hour < windowStart),
+      (row, phase) => row[phase],
+    );
 
     const found = detectPhaseDegradation(recent, baseline);
     if (!found) continue;

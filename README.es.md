@@ -27,7 +27,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Abre `APP_URL`, crea la cuenta de administrador en `/setup` (el registro se cierra justo después) y añade tus webs. Para monitorizar servicios de tu red interna, permite rangos concretos con `ALLOW_PRIVATE_CIDRS=192.168.1.0/24`. Para que te avisen si el propio monitor se cae, configura `HEARTBEAT_URL` con un servicio como [healthchecks.io](https://healthchecks.io).
+Abre el enlace de configuración que la web imprime al arrancar (`docker compose logs web`), crea la cuenta de administrador (el registro se cierra justo después) y añade tus webs. El enlace lleva un token, así que nadie puede quedarse la instancia solo por llegar antes. Para monitorizar servicios de tu red interna, permite rangos concretos con `ALLOW_PRIVATE_CIDRS=192.168.1.0/24`. Para que te avisen si el propio monitor se cae, configura `HEARTBEAT_URL` con un servicio como [healthchecks.io](https://healthchecks.io).
 
 ## Más información
 

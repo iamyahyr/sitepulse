@@ -1,4 +1,5 @@
 import "server-only";
+import { isValidCidr } from "@sitepulse/core";
 import { z } from "zod";
 
 const bool = z
@@ -6,10 +7,21 @@ const bool = z
   .optional()
   .transform((v) => v === "true" || v === "1");
 
-const csv = z
-  .string()
-  .optional()
-  .transform((v) => (v ?? "").split(",").map((s) => s.trim()).filter(Boolean));
+/** Comma-separated CIDRs; a typo fails at startup instead of on the first private address. */
+const cidrs = (fallback: readonly string[] = []) =>
+  z
+    .string()
+    .optional()
+    .transform((v) => (v === undefined || v === "" ? [...fallback] : v.split(",").map((s) => s.trim()).filter(Boolean)))
+    .refine((list) => list.every(isValidCidr), "Use comma-separated CIDRs such as 192.168.1.0/24");
+
+/**
+ * Hops allowed to forward the client IP. The client is the rightmost
+ * X-Forwarded-For entry outside these ranges, so a value a visitor makes up
+ * on the left is ignored. Private ranges cover a reverse proxy on the same
+ * host or Docker network (Traefik, Caddy, nginx).
+ */
+const DEFAULT_TRUSTED_PROXIES = ["127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"];
 
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -24,7 +36,9 @@ const schema = z.object({
   MAX_SITES_PER_USER: z.coerce.number().int().positive().default(50),
   MIN_INTERVAL_SEC: z.coerce.number().int().min(30).default(60),
   /** CIDRs the prober may reach despite being private, e.g. "192.168.1.0/24". */
-  ALLOW_PRIVATE_CIDRS: csv,
+  ALLOW_PRIVATE_CIDRS: cidrs(),
+  /** Reverse proxies whose X-Forwarded-For is believed, for per-client login rate limits. */
+  TRUSTED_PROXIES: cidrs(DEFAULT_TRUSTED_PROXIES),
 });
 
 export type Env = z.infer<typeof schema>;

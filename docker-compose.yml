@@ -3,7 +3,7 @@
 #   cp .env.example .env      # fill in the secrets
 #   docker compose up -d --build
 #
-# Then open APP_URL and create the admin account on /setup.
+# Then open the setup link from `docker compose logs web` and create the admin account.
 
 name: sitepulse
 
@@ -64,6 +64,7 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
       SITEPULSE_SECRET_KEY: ${SITEPULSE_SECRET_KEY:?Set SITEPULSE_SECRET_KEY in .env}
       ALLOW_PRIVATE_CIDRS: ${ALLOW_PRIVATE_CIDRS:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       MAX_SITES_PER_USER: ${MAX_SITES_PER_USER:-50}
       MIN_INTERVAL_SEC: ${MIN_INTERVAL_SEC:-60}
       DEMO_MODE: ${DEMO_MODE:-false}

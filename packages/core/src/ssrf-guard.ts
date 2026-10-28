@@ -42,6 +42,16 @@ function parseCidrs(cidrs: readonly string[]): ParsedCidr[] {
   return parsed;
 }
 
+/** Whether `cidr` is an "address/prefix" range, so configuration can be rejected at startup instead of mid-probe. */
+export function isValidCidr(cidr: string): boolean {
+  try {
+    ipaddr.parseCIDR(cidr.trim());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Unwraps IPv4-mapped IPv6 (::ffff:a.b.c.d) so it is judged as the IPv4 it really is. */
 function normalize(address: string): ipaddr.IPv4 | ipaddr.IPv6 {
   const parsed = ipaddr.parse(address);

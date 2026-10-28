@@ -60,7 +60,8 @@ export async function getDashboard(ownerId: string) {
     db()
       .select({
         siteId: checks.siteId,
-        hour: sql<string>`date_trunc('hour', ${checks.checkedAt})`.as("hour"),
+        // UTC, like barStart below and the rollups: the database's own timezone may have a half-hour offset.
+        hour: sql<string>`date_trunc('hour', ${checks.checkedAt}, 'UTC')`.as("hour"),
         total: sql<number>`count(*)`.mapWith(Number),
         failed: sql<number>`count(*) filter (where not ${checks.success})`.mapWith(Number),
       })
@@ -90,7 +91,11 @@ export async function getDashboard(ownerId: string) {
     return {
       ...site,
       latest: latest.get(site.id) ?? null,
-      uptime7d: site.lastCheckedAt ? computeUptime(siteIncidents, { from: weekAgo, to: now }, site.createdAt).ratio : null,
+      // Paused sites are not being observed, so they have no uptime to claim.
+      uptime7d:
+        site.enabled && site.lastCheckedAt
+          ? computeUptime(siteIncidents, { from: weekAgo, to: now }, site.monitoredSince).ratio
+          : null,
       p50Ms: p50.get(site.id) ?? null,
       buckets,
       degradation: degradations.get(site.id) ?? null,

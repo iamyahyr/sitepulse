@@ -5,14 +5,27 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Button, Field, Input } from "@/components/ui";
 import { authClient } from "@/lib/auth-client";
+import { SETUP_TOKEN_HEADER } from "@/lib/setup";
 
 type Mode = "sign-in" | "setup";
 
+/**
+ * Where to go after signing in: only a path on this site. Resolving against a
+ * placeholder origin catches every way to leave it ("//evil", "/\evil",
+ * "https:evil"…) instead of guessing at prefixes.
+ */
 function safeNext(value: string | null) {
-  return value && value.startsWith("/") && !value.startsWith("//") ? value : "/";
+  if (!value) return "/";
+  const base = "http://sitepulse.invalid";
+  try {
+    const url = new URL(value, base);
+    return url.origin === base ? `${url.pathname}${url.search}${url.hash}` : "/";
+  } catch {
+    return "/";
+  }
 }
 
-export function AuthForm({ mode }: { mode: Mode }) {
+export function AuthForm({ mode, setupToken }: { mode: Mode; setupToken?: string }) {
   const router = useRouter();
   const next = safeNext(useSearchParams().get("next"));
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +42,10 @@ export function AuthForm({ mode }: { mode: Mode }) {
     const { error } =
       mode === "sign-in"
         ? await authClient.signIn.email({ email, password })
-        : await authClient.signUp.email({ name: String(form.get("name")), email, password });
+        : await authClient.signUp.email(
+            { name: String(form.get("name")), email, password },
+            { headers: { [SETUP_TOKEN_HEADER]: setupToken ?? "" } },
+          );
 
     if (error) {
       setPending(false);

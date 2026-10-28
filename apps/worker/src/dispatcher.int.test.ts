@@ -135,6 +135,22 @@ describe.skipIf(!url)("alert dispatcher (Postgres integration)", () => {
     expect(received.map((r) => r.json.type)).toEqual(["incident.opened", "incident.resolved"]);
   });
 
+  it("never lets a recovery alert overtake its outage alert", async () => {
+    const site = await siteWithQueuedAlert();
+    reply = (res) => res.writeHead(503).end();
+    await dispatchOnce(db, options());
+    await recordResult(db, site, ok(), new Date());
+
+    // "down" is backing off, so the queued "up" must wait for it.
+    reply = (res) => res.writeHead(204).end();
+    expect(await dispatchOnce(db, options())).toBe(0);
+
+    const later = new Date(Date.now() + backoffMs(1) + 1_000);
+    await dispatchOnce(db, options(), later);
+    await dispatchOnce(db, options(), later);
+    expect(received.map((r) => r.json.type)).toEqual(["incident.opened", "incident.opened", "incident.resolved"]);
+  });
+
   it("backs off on retryable errors and gives up on permanent ones", async () => {
     await siteWithQueuedAlert();
     reply = (res) => res.writeHead(503).end();

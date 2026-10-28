@@ -6,6 +6,8 @@ import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { db } from "@/server/db";
 import { env } from "@/server/env";
+import { SETUP_TOKEN_HEADER } from "@/lib/setup";
+import { isSetupToken } from "@/server/setup-token";
 
 export async function hasAnyUser(): Promise<boolean> {
   const [row] = await db().select({ n: count() }).from(schema.user);
@@ -37,10 +39,14 @@ function createAuth() {
       user: {
         create: {
           // Self-hosted, single-tenant: sign-up is only open until the first
-          // account (the admin, created on /setup) exists.
-          async before() {
+          // account (the admin, created on /setup) exists, and only to whoever
+          // holds the setup link from the server logs.
+          async before(_user, ctx) {
             if (e.DEMO_MODE || (await hasAnyUser())) {
               throw new APIError("FORBIDDEN", { message: "Sign-up is closed on this instance." });
+            }
+            if (!isSetupToken(ctx?.headers?.get(SETUP_TOKEN_HEADER))) {
+              throw new APIError("FORBIDDEN", { message: "Open the setup link printed in the server logs." });
             }
           },
         },
@@ -58,6 +64,9 @@ function createAuth() {
         "/sign-in/email": { window: 60, max: 10 },
         "/sign-up/email": { window: 60, max: 5 },
       },
+    },
+    advanced: {
+      ipAddress: { trustedProxies: e.TRUSTED_PROXIES },
     },
     plugins: [nextCookies()],
   });

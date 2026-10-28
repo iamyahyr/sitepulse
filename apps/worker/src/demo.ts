@@ -116,6 +116,7 @@ async function backfill(db: Database, siteId: string, path: string, days: number
       lastCheckedAt: last?.checkedAt ?? null,
       nextCheckAt: now,
       createdAt: new Date(end - days * 24 * 60 * MINUTE),
+      monitoredSince: new Date(end - days * 24 * 60 * MINUTE),
     })
     .where(eq(sites.id, siteId));
 }

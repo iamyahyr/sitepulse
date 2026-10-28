@@ -170,4 +170,17 @@ describe("delivery", () => {
       retryable: true,
     });
   });
+
+  it("spends one timeout on DNS and the request together", async () => {
+    respond = () => {};
+    const slowDns = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      return loopback();
+    };
+    const started = performance.now();
+    const result = await safePost(`http://hooks.test:${port}/`, "{}", {}, { ...allowLoopback, resolver: slowDns, timeoutMs: 400 });
+    expect(result).toMatchObject({ ok: false, retryable: true });
+    // Before, the request got a fresh 400 ms after the 250 ms lookup (650 ms in all).
+    expect(performance.now() - started).toBeLessThan(550);
+  });
 });

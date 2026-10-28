@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkUrl, isBlockedAddress } from "./ssrf-guard";
+import { checkUrl, isBlockedAddress, isValidCidr } from "./ssrf-guard";
 
 describe("isBlockedAddress", () => {
   it.each([
@@ -90,5 +90,15 @@ describe("checkUrl", () => {
     ["http://169.254.169.254/latest/meta-data/", "BLOCKED_ADDRESS"],
   ])("rejects %s with %s", (url, reason) => {
     expect(checkUrl(url)).toEqual({ ok: false, reason });
+  });
+});
+
+describe("isValidCidr", () => {
+  it.each(["192.168.1.0/24", " 10.0.0.0/8 ", "172.30.0.10/32", "fc00::/7"])("accepts %s", (cidr) => {
+    expect(isValidCidr(cidr)).toBe(true);
+  });
+
+  it.each(["192.168.1.0", "192.168.1.0/33", "nas.local/24", ""])("rejects %s", (cidr) => {
+    expect(isValidCidr(cidr)).toBe(false);
   });
 });

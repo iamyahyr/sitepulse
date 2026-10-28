@@ -46,11 +46,15 @@ export async function safePost(
   if (!check.ok) return { ok: false, status: null, retryable: false, error: `URL not allowed (${check.reason})` };
   const url = check.url;
 
+  // One budget for DNS and the request together, like the prober.
+  const deadline = performance.now() + timeoutMs;
   const resolution = await resolveTarget(url, options.resolver ?? systemResolver, guard, timeoutMs);
   if (!resolution.ok) {
     return { ok: false, status: null, retryable: resolution.code !== "BLOCKED_ADDRESS", error: resolution.message };
   }
   const target = resolution.target;
+  const remainingMs = Math.round(deadline - performance.now());
+  if (remainingMs <= 0) return { ok: false, status: null, retryable: true, error: `Timed out after ${timeoutMs} ms` };
 
   return new Promise((resolve) => {
     let settled = false;
@@ -82,7 +86,7 @@ export async function safePost(
 
     const timer = setTimeout(
       () => finish({ ok: false, status: null, retryable: true, error: `Timed out after ${timeoutMs} ms` }),
-      timeoutMs,
+      remainingMs,
     );
 
     req.on("response", (res) => {

@@ -105,6 +105,12 @@ export const sites = pgTable(
     timeoutMs: integer("timeout_ms").notNull().default(10_000),
     expectedStatus: text("expected_status").notNull().default("200-399"),
     enabled: boolean("enabled").notNull().default(true),
+    /**
+     * Start of the current monitoring stretch: creation, a URL change or the
+     * last resume. Uptime is measured from here, so time spent paused or
+     * watching another URL never counts as "up".
+     */
+    monitoredSince: tz("monitored_since").notNull().defaultNow(),
 
     // Scheduler + state machine (see packages/core/src/incidents.ts)
     state: siteState("state").notNull().default("unknown"),

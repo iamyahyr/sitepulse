@@ -22,6 +22,13 @@
       "when": 1793131777931,
       "tag": "0002_degradations",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793187288266,
+      "tag": "0003_monitored_since",
+      "breakpoints": true
     }
   ]
 }

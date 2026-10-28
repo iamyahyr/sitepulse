@@ -42,11 +42,11 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Open `APP_URL`, create the admin account on `/setup` (sign-up closes right after) and add your sites. Postgres, the worker and the web app all run from `docker-compose.yml`; the worker applies database migrations on start and the web app waits until the worker is healthy.
+Open the setup link the web app prints on start (`docker compose logs web`), create the admin account (sign-up closes right after) and add your sites. The link carries a token, so nobody who merely reaches the server first can claim it. Postgres, the worker and the web app all run from `docker-compose.yml`; the worker applies database migrations on start and the web app waits until the worker is healthy.
 
 - **Updating:** `git pull && docker compose up -d --build`. Migrations run automatically.
 - **Backups:** everything lives in the `postgres-data` volume, e.g. `docker compose exec postgres pg_dump -U sitepulse sitepulse > backup.sql`.
-- **HTTPS:** put SitePulse behind your reverse proxy (Caddy, Traefik, Nginx or Dokploy's) and set `APP_URL` to the public `https://` address.
+- **HTTPS:** put SitePulse behind your reverse proxy (Caddy, Traefik, Nginx or Dokploy's) and set `APP_URL` to the public `https://` address. Login rate limits are per client IP, read from `X-Forwarded-For` as set by proxies in `TRUSTED_PROXIES` (private ranges by default). Exposed without a proxy, that header can be forged, so publish the port only on a private network or behind one.
 - **Watching the watcher:** a monitor cannot report its own death. Set `HEARTBEAT_URL` to a [healthchecks.io](https://healthchecks.io) (or similar) ping URL to be told if the worker stops.
 - **Internal services:** private and loopback addresses are blocked by default. Allow specific ranges with `ALLOW_PRIVATE_CIDRS=192.168.1.0/24`.
 - **Dokploy:** create a *Compose* application pointing at this repository, add the variables from `.env.example` in its Environment tab and attach your domain to the `web` service on port 3000.
@@ -113,7 +113,8 @@ A monitor makes requests to URLs that users type in, which makes it a textbook S
 - **DNS pinning:** every answer is validated, then the connection is pinned to the validated address, so a DNS-rebinding answer cannot swap the target between check and connect. An answer that mixes public and private addresses is rejected as a whole.
 - **Redirects** are followed manually (at most 5) and every hop goes through the same checks. Responses are read up to 256 KB and never stored.
 - **Webhook URLs** go through the same guard, are never redirected and never send their response back to the user.
-- **Secrets:** alert channel settings are encrypted at rest with AES-256-GCM; webhook secrets are shown once. Sign-up closes after the first account.
+- **Secrets:** alert channel settings are encrypted at rest with AES-256-GCM; webhook secrets are shown once.
+- **Accounts:** the first account needs the setup link from the server logs, and sign-up closes once it exists. Sign-in is rate limited per client IP, and the post-login redirect only accepts paths on the same site.
 
 Found a vulnerability? See [SECURITY.md](SECURITY.md).
 
@@ -176,7 +177,7 @@ docker compose -f docker-compose.dev.yml up -d   # Postgres on 127.0.0.1:5442
 cp apps/web/.env.example apps/web/.env.local     # set BETTER_AUTH_SECRET and SITEPULSE_SECRET_KEY
 cp apps/worker/.env.example apps/worker/.env     # same SITEPULSE_SECRET_KEY
 pnpm db:migrate
-pnpm dev                                         # web, worker and flaky; open /setup
+pnpm dev                                         # web, worker and flaky; open the /setup link it prints
 pnpm db:seed you@example.com                     # optional: demo sites + 7 days of history
 pnpm test                                        # set TEST_DATABASE_URL to run the Postgres tests too
 ```

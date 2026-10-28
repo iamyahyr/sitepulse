@@ -23,7 +23,8 @@ import { log } from "./log";
  *
  * Rows are written by recordResult() in the same transaction that opens or
  * resolves an incident; the unique (incident, channel, kind) key means each
- * alert exists exactly once. Here they are claimed with SKIP LOCKED (so
+ * alert exists exactly once, and a "down" is always delivered (or given up
+ * on) before its "up". Here they are claimed with SKIP LOCKED (so
  * several workers can dispatch side by side), sent outside any transaction,
  * and marked sent, rescheduled with exponential backoff, or failed.
  *
@@ -53,7 +54,21 @@ async function claim(db: Database, limit: number, now: Date) {
     const due = await tx
       .select({ id: notifications.id })
       .from(notifications)
-      .where(and(eq(notifications.status, "pending"), lte(notifications.nextAttemptAt, now)))
+      .where(
+        and(
+          eq(notifications.status, "pending"),
+          lte(notifications.nextAttemptAt, now),
+          // A recovery never overtakes its outage: while the "down" alert for
+          // the same incident and channel is still being retried, "up" waits.
+          sql`not (${notifications.kind} = 'up' and exists (
+            select 1 from ${notifications} as earlier
+            where earlier.incident_id = ${notifications.incidentId}
+              and earlier.channel_id = ${notifications.channelId}
+              and earlier.kind = 'down'
+              and earlier.status = 'pending'
+          ))`,
+        ),
+      )
       .orderBy(asc(notifications.createdAt))
       .limit(limit)
       .for("update", { skipLocked: true });

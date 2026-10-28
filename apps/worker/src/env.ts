@@ -1,5 +1,5 @@
 import { hostname } from "node:os";
-import { DEFAULT_DNS_CANARIES, DEFAULT_TCP_CANARIES } from "@sitepulse/core";
+import { DEFAULT_DNS_CANARIES, DEFAULT_TCP_CANARIES, isValidCidr } from "@sitepulse/core";
 import { z } from "zod";
 
 const bool = (fallback: boolean) =>
@@ -29,7 +29,9 @@ const schema = z.object({
   ALLOW_PRIVATE_CIDRS: z
     .string()
     .optional()
-    .transform((v) => (v ?? "").split(",").map((s) => s.trim()).filter(Boolean)),
+    .transform((v) => (v ?? "").split(",").map((s) => s.trim()).filter(Boolean))
+    // A typo must fail here, not on the first probe that meets a private address.
+    .refine((list) => list.every(isValidCidr), "Use comma-separated CIDRs such as 192.168.1.0/24"),
   RUN_MIGRATIONS: bool(true),
   /** Public demo: create the visitor account and demo sites against DEMO_TARGET_URL on start. */
   DEMO_MODE: bool(false),
