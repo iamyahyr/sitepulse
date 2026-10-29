@@ -17,6 +17,7 @@ Most uptime monitors tell you a site is down and how long it took to answer. Whe
 - **Alerts that do not spam.** One message when an incident opens, one when it resolves, one when a site starts degrading. Discord or a signed webhook (Slack, n8n, ntfy, Zapier…). Never one per failed check.
 - **Honest uptime.** Time-weighted from confirmed incidents, never "successful checks ÷ total checks", and never rounded up to 100% when there was an outage.
 - **No false alarms when _you_ are the one offline.** If the monitor's own server loses its network or DNS, it notices and does not mark every site as down.
+- **Monthly reports for your clients.** Uptime, incidents with their diagnosis, downtime and response time per phase for every site of a client, as a revocable read-only link or a PDF.
 
 ## Screenshots
 
@@ -160,11 +161,11 @@ Known, deliberate or not done yet:
 - **DNS through c-ares.** The prober resolves with the system's nameservers but ignores `/etc/hosts`, which is right for public sites but surprising for hosts-file-only internal names.
 - **English UI.** Spanish is planned.
 - **Single tenant.** Built for one person or team per instance; sign-up closes after the admin account exists.
+- **Report PDFs come from the browser.** "Download PDF" opens the print dialog (Save as PDF); the server does not render PDFs. Monthly percentiles are approximated from hourly medians, since raw checks are only kept for 30 days.
 
 ## Roadmap
 
 - Public status page per client
-- Monthly report per client (uptime, incidents, latency), as a shareable link or PDF
 - Certificate expiry alerts (30 / 14 / 7 days)
 - Keyword checks and email alerts
 - Spanish UI

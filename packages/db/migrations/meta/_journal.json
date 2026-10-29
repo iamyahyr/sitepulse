@@ -29,6 +29,13 @@
       "when": 1793187288266,
       "tag": "0003_monitored_since",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793265802959,
+      "tag": "0004_report_shares",
+      "breakpoints": true
     }
   ]
 }

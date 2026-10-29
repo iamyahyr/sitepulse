@@ -81,7 +81,7 @@ Dashboard (totales, operativos, con incidencia, última ejecución del worker, s
 12. SP-13: README en inglés con GIF, diagrama mermaid, sección de seguridad (el SSRF explicado), sección de limitaciones honestas y comparativa con Kuma, Gatus y Upptime. También README.es.md, SECURITY.md, CONTRIBUTING.md, plantillas de issues y release-please.
 13. Demo pública en Dokploy (`DEMO_MODE`).
 
-**Futuro (v1.1+)**: página de estado pública por cliente, informe mensual por cliente, alertas de caducidad TLS a 30/14/7 días, comprobación de palabra clave, correo SMTP, i18n en/es de la interfaz.
+**Futuro (v1.1+)**: página de estado pública por cliente, ~~informe mensual por cliente~~ (hecho: `/reports`, enlace público `/r/<token>` revocable y PDF desde el navegador), alertas de caducidad TLS a 30/14/7 días, comprobación de palabra clave, correo SMTP, i18n en/es de la interfaz.
 
 Estimación: el MVP en unas 2 semanas de trabajo concentrado y el pulido con la demo en 3–5 días más.
 

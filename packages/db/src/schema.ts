@@ -4,6 +4,7 @@ import {
   bigserial,
   boolean,
   check,
+  date,
   index,
   integer,
   pgEnum,
@@ -307,3 +308,27 @@ export const workerHeartbeats = pgTable("worker_heartbeats", {
   offlineSince: tz("offline_since"),
   offlineReason: text("offline_reason", { enum: ["network", "dns"] }),
 });
+
+// ─── Reports ────────────────────────────────────────────────────────────
+
+/**
+ * Public, read-only link to one client's monthly report. Only the SHA-256 of
+ * the token is stored: the link is shown once when created and can be revoked.
+ */
+export const reportShares = pgTable(
+  "report_shares",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    /** Matches `sites.client`; null is the "No client" group. */
+    client: text("client"),
+    /** First day of the reported month (UTC). */
+    month: date("month", { mode: "string" }).notNull(),
+    tokenHash: text("token_hash").notNull(),
+    createdAt: tz("created_at").notNull().defaultNow(),
+    revokedAt: tz("revoked_at"),
+  },
+  (t) => [uniqueIndex("report_shares_token_idx").on(t.tokenHash), index("report_shares_owner_idx").on(t.ownerId)],
+);

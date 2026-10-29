@@ -14,6 +14,7 @@ La mayoría de los monitores te dicen que una web está caída y cuánto tardó 
 - **Alertas que no saturan.** Un mensaje cuando se abre un incidente, otro cuando se resuelve y otro cuando una web empieza a degradarse. Por Discord o por webhook firmado (Slack, n8n, ntfy, Zapier…). Nunca uno por cada comprobación fallida.
 - **Uptime honesto.** Calculado por tiempo a partir de incidentes confirmados, nunca como «comprobaciones correctas ÷ totales», y nunca redondeado al 100 % si hubo una caída.
 - **Sin falsas alarmas cuando el caído eres tú.** Si el propio servidor del monitor pierde la red o el DNS, lo detecta y no marca todas las webs como caídas.
+- **Informes mensuales para tus clientes.** Uptime, incidentes con su diagnóstico, tiempo caído y tiempo de respuesta por fase de todas las webs de un cliente, como enlace de solo lectura revocable o en PDF.
 
 ## Puesta en marcha
 

@@ -15,7 +15,7 @@ export function AppShell({
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       {/* The column stretches with the page (border and background); the menu inside stays pinned. */}
-      <div className="border-border bg-surface shrink-0 border-b md:w-56 md:border-r md:border-b-0">
+      <div className="border-border bg-surface shrink-0 border-b md:w-56 md:border-r md:border-b-0 print:hidden">
         <aside className="flex items-center gap-1 overflow-x-auto px-4 py-3 md:sticky md:top-0 md:h-screen md:flex-col md:items-stretch md:px-3 md:py-5">
           <Link href="/" className="mr-3 flex items-center gap-2 px-2 font-semibold tracking-tight md:mr-0 md:mb-6">
             <Activity className="text-up size-5" aria-hidden />
@@ -31,9 +31,9 @@ export function AppShell({
           </div>
         </aside>
       </div>
-      <main className="min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8">
+      <main className="min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8 print:p-0">
         {demo && (
-          <div className="border-suspect/40 bg-suspect/10 mx-auto mb-6 max-w-6xl rounded-lg border px-4 py-3 text-sm leading-relaxed">
+          <div className="border-suspect/40 bg-suspect/10 mx-auto mb-6 max-w-6xl rounded-lg border px-4 py-3 text-sm leading-relaxed print:hidden">
             <p>
               <strong>Live, read-only demo.</strong> These sites are served by a built-in service that fails on purpose
               on a fixed schedule: the shop returns 502 for 5 minutes every 4 hours, the API hangs every 6 hours and the

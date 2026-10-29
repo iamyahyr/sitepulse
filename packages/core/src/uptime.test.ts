@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { detectDegradation, detectPhaseDegradation, isDegradationOver, median } from "./degradation";
 import { matchesExpectedStatus, parseExpectedStatus } from "./status";
-import { computeUptime, formatUptime } from "./uptime";
+import { computeObservedUptime, computeUptime, formatUptime } from "./uptime";
 
 const h = (hour: number) => new Date(Date.UTC(2026, 9, 1, hour));
 const day = { from: h(0), to: h(24) };
@@ -126,5 +126,50 @@ describe("detectPhaseDegradation", () => {
     expect(isDegradationOver(200, 150)).toBe(true);
     expect(isDegradationOver(300, 150)).toBe(false);
     expect(isDegradationOver(null, 150)).toBe(false);
+  });
+});
+
+describe("computeObservedUptime", () => {
+  const hours = (from: number, to: number) => Array.from({ length: to - from }, (_, i) => h(from + i));
+
+  it("is null when nothing was checked in the window", () => {
+    expect(computeObservedUptime([], [], day)).toEqual({ ratio: null, downtimeMs: 0, observedMs: 0 });
+  });
+
+  it("does not credit paused hours as up", () => {
+    // Checked 00–06 and 18–24, paused in between, down for 2 h while checked.
+    const report = computeObservedUptime([{ start: h(4), end: h(6) }], [...hours(0, 6), ...hours(18, 24)], day);
+    expect(report.observedMs).toBe(12 * 3600_000);
+    expect(report.ratio).toBeCloseTo(10 / 12);
+  });
+
+  it("only counts the part of an incident that was observed", () => {
+    const report = computeObservedUptime([{ start: h(5), end: h(20) }], [...hours(0, 6), ...hours(18, 24)], day);
+    expect(report.downtimeMs).toBe(3 * 3600_000);
+  });
+
+  it("clips incidents that cross the window and counts open ones until the end", () => {
+    const report = computeObservedUptime(
+      [
+        { start: new Date(Date.UTC(2026, 8, 30, 22)), end: h(1) },
+        { start: h(23), end: null },
+      ],
+      [h(-1), ...hours(0, 24), h(24)],
+      day,
+    );
+    expect(report.observedMs).toBe(24 * 3600_000);
+    expect(report.downtimeMs).toBe(2 * 3600_000);
+  });
+
+  it("does not double count overlapping incidents", () => {
+    const report = computeObservedUptime(
+      [
+        { start: h(1), end: h(3) },
+        { start: h(2), end: h(4) },
+      ],
+      hours(0, 24),
+      day,
+    );
+    expect(report.downtimeMs).toBe(3 * 3600_000);
   });
 });

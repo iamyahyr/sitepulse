@@ -69,3 +69,35 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+/* Reports print to PDF in the light palette, whatever the screen uses. */
+@media print {
+  :root,
+  :root:not([data-theme="light"]) {
+    --background: #ffffff;
+    --surface: #ffffff;
+    --surface-muted: #f0f0ed;
+    --border: #e4e4e0;
+    --foreground: #18181b;
+    --muted: #6b6b73;
+
+    --up: #16a34a;
+    --suspect: #d97706;
+    --down: #dc2626;
+    --unknown: #a1a1aa;
+
+    --phase-dns: #8b5cf6;
+    --phase-connect: #3b82f6;
+    --phase-tls: #06b6d4;
+    --phase-ttfb: #f59e0b;
+    --phase-download: #10b981;
+  }
+
+  body {
+    print-color-adjust: exact;
+  }
+
+  section {
+    break-inside: avoid;
+  }
+}

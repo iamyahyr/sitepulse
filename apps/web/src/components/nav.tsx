@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Globe, LayoutDashboard, LogOut, Settings, TriangleAlert } from "lucide-react";
+import { Bell, FileText, Globe, LayoutDashboard, LogOut, Settings, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
@@ -10,6 +10,7 @@ const NAV = [
   { href: "/sites", label: "Sites", icon: Globe },
   { href: "/incidents", label: "Incidents", icon: TriangleAlert },
   { href: "/alerts", label: "Alerts", icon: Bell },
+  { href: "/reports", label: "Reports", icon: FileText },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 

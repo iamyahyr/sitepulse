@@ -32,7 +32,7 @@ export type IncidentStatus = "open" | "resolved" | "all";
 const DAY = 86_400_000;
 
 /** Ended because monitoring was paused or the URL changed, rather than by a recovery. */
-const closedManually = sql<boolean>`exists (
+export const closedManually = sql<boolean>`exists (
   select 1 from ${incidentEvents}
   where ${incidentEvents.incidentId} = ${incidents.id} and ${incidentEvents.type} = 'closed'
 )`;
@@ -41,7 +41,7 @@ const closedManually = sql<boolean>`exists (
  * HTTP status of the check that opened the incident, so a 502 reads "Bad
  * gateway" in lists too, not just "server error". Null once retention pruned it.
  */
-const openingStatus = sql<number | null>`(
+export const openingStatus = sql<number | null>`(
   select ${checks.httpStatus} from ${checks}
   where ${checks.siteId} = ${incidents.siteId} and not ${checks.success} and ${checks.checkedAt} >= ${incidents.startedAt}
   order by ${checks.checkedAt}
