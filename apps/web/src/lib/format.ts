@@ -9,6 +9,7 @@ export function relativeTime(date: Date, now: Date): string {
 }
 
 export function duration(ms: number): string {
+  if (ms < 60_000) return `${Math.max(1, Math.round(ms / 1000))} s`;
   const minutes = Math.round(ms / 60_000);
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60);
@@ -22,4 +23,18 @@ export function clockTime(date: Date): string {
 
 export function ms(value: number | null): string {
   return value === null ? "—" : `${Math.round(value)} ms`;
+}
+
+const DATE_TIME = new Intl.DateTimeFormat("en", {
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: "UTC",
+});
+
+/** "Oct 27, 14:05 UTC": server-rendered, so always UTC rather than the server's own zone. */
+export function dateTime(date: Date): string {
+  return `${DATE_TIME.format(date)} UTC`;
 }

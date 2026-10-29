@@ -6,11 +6,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 
 const NAV = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, ready: true },
-  { href: "/sites", label: "Sites", icon: Globe, ready: true },
-  { href: "/incidents", label: "Incidents", icon: TriangleAlert, ready: false },
-  { href: "/alerts", label: "Alerts", icon: Bell, ready: true },
-  { href: "/settings", label: "Settings", icon: Settings, ready: false },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/sites", label: "Sites", icon: Globe },
+  { href: "/incidents", label: "Incidents", icon: TriangleAlert },
+  { href: "/alerts", label: "Alerts", icon: Bell },
+  { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 const ITEM = "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm whitespace-nowrap";
@@ -18,15 +18,7 @@ const ITEM = "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm whitespace-
 export function NavLinks() {
   const pathname = usePathname();
 
-  return NAV.map(({ href, label, icon: Icon, ready }) => {
-    if (!ready) {
-      return (
-        <span key={href} className={`${ITEM} text-muted/70 cursor-not-allowed`} title="Coming soon">
-          <Icon className="size-4" aria-hidden />
-          {label}
-        </span>
-      );
-    }
+  return NAV.map(({ href, label, icon: Icon }) => {
     const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
     return (
       <Link

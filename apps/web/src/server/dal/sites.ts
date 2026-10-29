@@ -17,8 +17,8 @@ import {
   sql,
   type Database,
 } from "@sitepulse/db";
-import { z } from "zod";
 import { db } from "@/server/db";
+import { isUuid } from "@/server/dal/ids";
 import { env } from "@/server/env";
 import type { SiteInput } from "@/server/site-input";
 
@@ -41,8 +41,6 @@ async function setChannels(tx: Tx, siteId: string, channelIds: string[]) {
     await tx.insert(siteAlertChannels).values(channelIds.map((channelId) => ({ siteId, channelId })));
   }
 }
-
-const isUuid = (id: string) => z.uuid().safeParse(id).success;
 
 export async function listSites(ownerId: string) {
   return db().select().from(sites).where(eq(sites.ownerId, ownerId)).orderBy(sites.name);
@@ -104,15 +102,6 @@ export async function openDegradations(siteIds: string[]): Promise<Map<string, D
     .from(siteDegradations)
     .where(and(inArray(siteDegradations.siteId, siteIds), isNull(siteDegradations.resolvedAt)));
   return new Map(rows.map((row) => [row.siteId, row]));
-}
-
-export async function siteIncidents(siteId: string, limit = 20) {
-  return db()
-    .select()
-    .from(incidents)
-    .where(eq(incidents.siteId, siteId))
-    .orderBy(desc(incidents.startedAt))
-    .limit(limit);
 }
 
 export async function createSite(ownerId: string, input: SiteInput, channelIds: string[] = []): Promise<Site> {

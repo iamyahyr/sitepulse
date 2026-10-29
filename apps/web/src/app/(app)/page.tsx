@@ -4,33 +4,19 @@ import Link from "next/link";
 import { Card, EmptyState } from "@/components/card";
 import { DegradationNotice } from "@/components/degradation-notice";
 import { PhaseWaterfall } from "@/components/phase-waterfall";
+import { Stat } from "@/components/stat";
 import { StatusBadge, StatusDot } from "@/components/status-badge";
 import { buttonClass } from "@/components/ui";
 import { UptimeBar } from "@/components/uptime-bar";
 import { brokenPhase, checkPhases } from "@/lib/checks";
 import { clockTime, duration, ms, relativeTime } from "@/lib/format";
+import { WORKER_STALE_MS } from "@/lib/worker";
 import { getDashboard, type OpenIncident } from "@/server/dal/dashboard";
 import { env } from "@/server/env";
 import { requireUser } from "@/server/session";
 
 const UPTIME_METHOD =
   "Time-weighted: the share of the last 7 days not covered by a confirmed incident. Not the ratio of successful checks.";
-
-/** The worker is considered stalled after this long without a heartbeat. */
-const WORKER_STALE_MS = 3 * 60_000;
-
-function Stat({ label, value, tone }: { label: string; value: string; tone?: "up" | "down" }) {
-  return (
-    <div className="border-border bg-surface rounded-xl border px-5 py-4">
-      <p className="text-muted text-xs font-medium tracking-wide uppercase">{label}</p>
-      <p
-        className={`mt-1 text-2xl font-semibold tabular-nums ${tone === "down" ? "text-down" : tone === "up" ? "text-up" : ""}`}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
 
 function OpenIncidentCard({ open: { site, incident, lastFailed }, now }: { open: OpenIncident; now: Date }) {
   const code = (lastFailed?.errorCode ?? incident.causeCode) as ErrorCode;
@@ -52,9 +38,14 @@ function OpenIncidentCard({ open: { site, incident, lastFailed }, now }: { open:
           </p>
           <h3 className="mt-1 text-lg font-semibold">{diagnosis.title}</h3>
           <p className="text-muted mt-2 text-sm leading-relaxed">{diagnosis.hint}</p>
-          <Link href={`/sites/${site.id}`} className="mt-4 inline-block text-sm underline underline-offset-4">
-            View site
-          </Link>
+          <div className="mt-4 flex gap-4 text-sm">
+            <Link href={`/incidents/${incident.id}`} className="underline underline-offset-4">
+              Incident timeline
+            </Link>
+            <Link href={`/sites/${site.id}`} className="text-muted hover:text-foreground underline underline-offset-4">
+              View site
+            </Link>
+          </div>
         </div>
         {lastFailed && (
           <div>

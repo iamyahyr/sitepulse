@@ -11,7 +11,8 @@ import { StatusBadge } from "@/components/status-badge";
 import { buttonClass } from "@/components/ui";
 import { brokenPhase, chartPhases, checkPhases, intervalLabel } from "@/lib/checks";
 import { clockTime, duration, ms, relativeTime } from "@/lib/format";
-import { getSite, openDegradations, recentChecks, siteIncidents, siteRollups, successfulChecksSince } from "@/server/dal/sites";
+import { listIncidents } from "@/server/dal/incidents";
+import { getSite, openDegradations, recentChecks, siteRollups, successfulChecksSince } from "@/server/dal/sites";
 import { env } from "@/server/env";
 import { requireUser } from "@/server/session";
 
@@ -36,9 +37,9 @@ export default async function SitePage({ params, searchParams }: PageProps<"/sit
 
   const now = new Date();
   const from = new Date(now.getTime() - RANGES[range].days * DAY);
-  const [checks, incidents, dayChecks, rollups, degradations] = await Promise.all([
+  const [checks, { rows: incidents }, dayChecks, rollups, degradations] = await Promise.all([
     recentChecks(site.id, 12),
-    siteIncidents(site.id, 10),
+    listIncidents(user.id, { status: "all", siteId: site.id }, 10),
     range === "24h" ? successfulChecksSince(site.id, from) : Promise.resolve([]),
     range === "24h" ? Promise.resolve([]) : siteRollups(site.id, from),
     openDegradations([site.id]),
@@ -191,15 +192,26 @@ export default async function SitePage({ params, searchParams }: PageProps<"/sit
               </ul>
             </Card>
 
-            <Card title="Incidents">
+            <Card
+              title="Incidents"
+              action={
+                incidents.length > 0 && (
+                  <Link href={`/incidents?site=${site.id}`} className="text-muted hover:text-foreground text-xs">
+                    View all
+                  </Link>
+                )
+              }
+            >
               {incidents.length === 0 ? (
                 <EmptyState title="No incidents recorded" />
               ) : (
                 <ul className="-my-2 text-sm">
-                  {incidents.map((incident) => (
+                  {incidents.map(({ incident, openingStatus }) => (
                     <li key={incident.id} className="border-border border-b py-2.5 last:border-0">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="font-medium">{diagnose(incident.causeCode as ErrorCode).title}</span>
+                        <Link href={`/incidents/${incident.id}`} className="font-medium hover:underline">
+                          {diagnose(incident.causeCode as ErrorCode, openingStatus).title}
+                        </Link>
                         <span className={`text-xs ${incident.resolvedAt ? "text-muted" : "text-down font-medium"}`}>
                           {incident.resolvedAt
                             ? duration(incident.resolvedAt.getTime() - incident.startedAt.getTime())

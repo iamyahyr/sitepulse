@@ -23,8 +23,8 @@ import {
   sites,
   sql,
 } from "@sitepulse/db";
-import { z } from "zod";
 import { db } from "@/server/db";
+import { isUuid } from "@/server/dal/ids";
 import { env } from "@/server/env";
 
 /**
@@ -43,8 +43,6 @@ export type ChannelSummary = {
   siteCount: number;
   createdAt: Date;
 };
-
-const isUuid = (id: string) => z.uuid().safeParse(id).success;
 
 function mask(config: ChannelConfig): string {
   try {

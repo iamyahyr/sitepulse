@@ -175,7 +175,7 @@ describe("delivery", () => {
     respond = () => {};
     const slowDns = async () => {
       await new Promise((resolve) => setTimeout(resolve, 250));
-      return loopback();
+      return loopback("hooks.test");
     };
     const started = performance.now();
     const result = await safePost(`http://hooks.test:${port}/`, "{}", {}, { ...allowLoopback, resolver: slowDns, timeoutMs: 400 });
