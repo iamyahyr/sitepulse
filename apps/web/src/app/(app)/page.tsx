@@ -3,6 +3,7 @@ import { Info, Plus, ShieldAlert, WifiOff } from "lucide-react";
 import Link from "next/link";
 import { Card, EmptyState } from "@/components/card";
 import { DegradationNotice } from "@/components/degradation-notice";
+import { LiveRefresh } from "@/components/live-refresh";
 import { PhaseWaterfall } from "@/components/phase-waterfall";
 import { Stat } from "@/components/stat";
 import { StatusBadge, StatusDot } from "@/components/status-badge";
@@ -12,6 +13,7 @@ import { brokenPhase, checkPhases } from "@/lib/checks";
 import { clockTime, duration, ms, relativeTime } from "@/lib/format";
 import { WORKER_STALE_MS } from "@/lib/worker";
 import { getDashboard, type OpenIncident } from "@/server/dal/dashboard";
+import { liveFingerprint } from "@/server/dal/live";
 import { env } from "@/server/env";
 import { requireUser } from "@/server/session";
 
@@ -106,6 +108,7 @@ function WorkerStatus({ lastSeen, now }: { lastSeen: Date | null; now: Date }) {
 
 export default async function DashboardPage() {
   const user = await requireUser();
+  const live = await liveFingerprint(user.id);
   const { now, sites, openIncidents, worker } = await getDashboard(user.id);
   const workerFresh = worker !== null && now.getTime() - worker.lastSeenAt.getTime() <= WORKER_STALE_MS;
 
@@ -117,7 +120,10 @@ export default async function DashboardPage() {
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+            <LiveRefresh since={live} />
+          </div>
           <p className="text-muted mt-1 text-sm">Checks run on the server whether or not this page is open.</p>
         </div>
         <WorkerStatus lastSeen={worker?.lastSeenAt ?? null} now={now} />

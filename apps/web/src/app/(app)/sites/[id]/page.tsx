@@ -1,17 +1,19 @@
 import { diagnose, type ErrorCode } from "@sitepulse/core";
-import { ExternalLink, Pencil } from "lucide-react";
+import { ExternalLink, Loader2, Pencil } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Card, EmptyState } from "@/components/card";
 import { DegradationNotice } from "@/components/degradation-notice";
 import { LatencyChart, type LatencyPoint } from "@/components/latency-chart";
+import { LiveRefresh } from "@/components/live-refresh";
 import { PhaseWaterfall } from "@/components/phase-waterfall";
 import { StatusBadge } from "@/components/status-badge";
 import { buttonClass } from "@/components/ui";
 import { brokenPhase, chartPhases, checkPhases, intervalLabel } from "@/lib/checks";
 import { clockTime, duration, ms, relativeTime } from "@/lib/format";
 import { listIncidents } from "@/server/dal/incidents";
+import { liveFingerprint } from "@/server/dal/live";
 import { getSite, openDegradations, recentChecks, siteRollups, successfulChecksSince } from "@/server/dal/sites";
 import { env } from "@/server/env";
 import { requireUser } from "@/server/session";
@@ -32,6 +34,7 @@ export default async function SitePage({ params, searchParams }: PageProps<"/sit
   const rangeParam = (await searchParams).range;
   const range: Range = typeof rangeParam === "string" && rangeParam in RANGES ? (rangeParam as Range) : "24h";
   const user = await requireUser();
+  const live = await liveFingerprint(user.id, { site: id });
   const site = await getSite(user.id, id);
   if (!site) notFound();
 
@@ -71,6 +74,7 @@ export default async function SitePage({ params, searchParams }: PageProps<"/sit
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">{site.name}</h1>
             {site.enabled ? <StatusBadge state={site.state} /> : <span className="text-muted text-sm">Paused</span>}
+            <LiveRefresh since={live} scope={{ site: id }} />
           </div>
           <a
             href={site.url}
@@ -106,9 +110,15 @@ export default async function SitePage({ params, searchParams }: PageProps<"/sit
       {!latest ? (
         <Card title="Checks">
           <EmptyState title="Waiting for the first check">
-            {site.enabled
-              ? "The worker picks up new sites within a minute. Make sure the worker process is running."
-              : "Monitoring is paused for this site."}
+            {site.enabled ? (
+              <>
+                <Loader2 className="mx-auto my-3 size-5 animate-spin" aria-hidden />
+                <p>The worker picks up new sites within a minute. Make sure the worker process is running.</p>
+                <p className="mt-1">This page updates on its own as soon as it lands.</p>
+              </>
+            ) : (
+              "Monitoring is paused for this site."
+            )}
           </EmptyState>
         </Card>
       ) : (

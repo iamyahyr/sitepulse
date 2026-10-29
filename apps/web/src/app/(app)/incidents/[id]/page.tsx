@@ -5,10 +5,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Card } from "@/components/card";
 import { IncidentStatus } from "@/components/incident-status";
+import { LiveRefresh } from "@/components/live-refresh";
 import { PhaseWaterfall } from "@/components/phase-waterfall";
 import { brokenPhase, checkPhases } from "@/lib/checks";
 import { dateTime, duration, ms, relativeTime } from "@/lib/format";
 import { getIncident } from "@/server/dal/incidents";
+import { liveFingerprint } from "@/server/dal/live";
 import { requireUser } from "@/server/session";
 
 export const metadata: Metadata = { title: "Incident · SitePulse" };
@@ -28,6 +30,7 @@ const title = (code: string | null, status?: number | null) => diagnose((code ??
 export default async function IncidentPage({ params }: PageProps<"/incidents/[id]">) {
   const { id } = await params;
   const user = await requireUser();
+  const live = await liveFingerprint(user.id, { incident: id });
   const data = await getIncident(user.id, id);
   if (!data) notFound();
 
@@ -138,6 +141,7 @@ export default async function IncidentPage({ params }: PageProps<"/incidents/[id
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">{cause.title}</h1>
           <IncidentStatus resolvedAt={incident.resolvedAt} closedManually={closedManually} />
+          <LiveRefresh since={live} scope={{ incident: id }} />
         </div>
         <p className="text-muted mt-1 text-sm">
           <Link href={`/sites/${site.id}`} className="text-foreground font-medium hover:underline">

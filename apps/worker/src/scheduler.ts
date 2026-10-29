@@ -1,4 +1,10 @@
-import { and, eq, inArray, lte, sites, type Database } from "@sitepulse/db";
+import { and, eq, inArray, lte, sites, sql, type Database } from "@sitepulse/db";
+
+/**
+ * Rescheduling is bookkeeping, not a change anyone can see: keeping
+ * `updated_at` as is stops the web app's live refresh from re-rendering for it.
+ */
+const keepUpdatedAt = { updatedAt: sql`${sites.updatedAt}` };
 
 /**
  * Reschedules a claimed site without recording anything, e.g. when the
@@ -8,7 +14,7 @@ import { and, eq, inArray, lte, sites, type Database } from "@sitepulse/db";
 export async function deferSite(db: Database, site: ClaimedSite, until: Date): Promise<void> {
   await db
     .update(sites)
-    .set({ nextCheckAt: until })
+    .set({ nextCheckAt: until, ...keepUpdatedAt })
     .where(and(eq(sites.id, site.id), eq(sites.url, site.url)));
 }
 
@@ -53,7 +59,7 @@ export async function claimDueSites(db: Database, limit: number, now = new Date(
     const leaseUntil = new Date(now.getTime() + Math.max(...due.map((s) => s.timeoutMs)) + LEASE_GRACE_MS);
     await tx
       .update(sites)
-      .set({ nextCheckAt: leaseUntil })
+      .set({ nextCheckAt: leaseUntil, ...keepUpdatedAt })
       .where(inArray(sites.id, due.map((s) => s.id)));
 
     return due;

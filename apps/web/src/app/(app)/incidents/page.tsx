@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card, EmptyState } from "@/components/card";
 import { IncidentStatus } from "@/components/incident-status";
+import { LiveRefresh } from "@/components/live-refresh";
 import { Stat } from "@/components/stat";
 import { Button, Select } from "@/components/ui";
 import { dateTime, duration } from "@/lib/format";
@@ -13,6 +14,7 @@ import {
   listIncidents,
   type IncidentStatus as StatusFilter,
 } from "@/server/dal/incidents";
+import { liveFingerprint } from "@/server/dal/live";
 import { listSites } from "@/server/dal/sites";
 import { requireUser } from "@/server/session";
 
@@ -26,6 +28,7 @@ const FILTERS: { value: StatusFilter; label: string }[] = [
 
 export default async function IncidentsPage({ searchParams }: PageProps<"/incidents">) {
   const user = await requireUser();
+  const live = await liveFingerprint(user.id);
   const params = await searchParams;
   const status: StatusFilter = FILTERS.some((f) => f.value === params.status) ? (params.status as StatusFilter) : "all";
   const before = decodeCursor(typeof params.before === "string" ? params.before : undefined);
@@ -55,7 +58,10 @@ export default async function IncidentsPage({ searchParams }: PageProps<"/incide
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Incidents</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">Incidents</h1>
+          <LiveRefresh since={live} />
+        </div>
         <p className="text-muted mt-1 text-sm">
           Confirmed outages: two failed checks in a row. Each one keeps its timeline, its cause and the alerts it sent.
         </p>

@@ -2,10 +2,12 @@ import { Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Card, EmptyState } from "@/components/card";
+import { LiveRefresh } from "@/components/live-refresh";
 import { StatusBadge } from "@/components/status-badge";
 import { buttonClass } from "@/components/ui";
 import { intervalLabel } from "@/lib/checks";
 import { ms, relativeTime } from "@/lib/format";
+import { liveFingerprint } from "@/server/dal/live";
 import { latestChecks, listSites } from "@/server/dal/sites";
 import { env } from "@/server/env";
 import { requireUser } from "@/server/session";
@@ -14,6 +16,7 @@ export const metadata: Metadata = { title: "Sites · SitePulse" };
 
 export default async function SitesPage() {
   const user = await requireUser();
+  const live = await liveFingerprint(user.id);
   const sites = await listSites(user.id);
   const latest = await latestChecks(sites.map((s) => s.id));
   const now = new Date();
@@ -23,7 +26,10 @@ export default async function SitesPage() {
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Sites</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">Sites</h1>
+            <LiveRefresh since={live} />
+          </div>
           <p className="text-muted mt-1 text-sm">
             {sites.length}/{MAX_SITES_PER_USER} sites monitored
           </p>
