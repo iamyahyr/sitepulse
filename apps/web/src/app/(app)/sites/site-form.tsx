@@ -1,12 +1,82 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button, Field, Input, Select, buttonClass } from "@/components/ui";
 import { INTERVAL_OPTIONS, TIMEOUT_OPTIONS, type SiteFormState, type SiteFormValues } from "@/lib/site-options";
+import { ChannelForm, type CreatedChannel } from "../alerts/channel-form";
 
 type Action = (state: SiteFormState, formData: FormData) => Promise<SiteFormState>;
+type Channel = { id: string; name: string; type: "discord" | "webhook" };
+
+/**
+ * Creates an alert channel without leaving the site form, so nothing typed so
+ * far is lost. The dialog is portalled to <body>: its own <form> must not nest
+ * inside the site form. It only exists while open, so each opening starts clean.
+ */
+function NewChannelDialog({ onCreated }: { onCreated: (channel: CreatedChannel) => void }) {
+  const [open, setOpen] = useState(false);
+  const [showDone, setShowDone] = useState(false);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const close = () => dialog.current?.close();
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() => {
+          setShowDone(false);
+          setOpen(true);
+        }}
+      >
+        <Plus className="size-4" aria-hidden />
+        New channel
+      </Button>
+      {open &&
+        createPortal(
+          <dialog
+            ref={(el) => {
+              dialog.current = el;
+              if (el && !el.open) el.showModal();
+            }}
+            onClose={() => setOpen(false)}
+            aria-labelledby="new-channel-title"
+            className="border-border bg-background text-foreground m-auto w-[calc(100%-2rem)] max-w-lg rounded-lg border p-0 shadow-xl backdrop:bg-black/50"
+          >
+            <div className="border-border flex items-center justify-between border-b px-5 py-3">
+              <h2 id="new-channel-title" className="text-sm font-semibold">
+                New alert channel
+              </h2>
+              <button type="button" onClick={close} className={buttonClass("ghost", "h-8 px-2")} aria-label="Close">
+                <X className="size-4" aria-hidden />
+              </button>
+            </div>
+            <div className="grid gap-4 p-5">
+              <ChannelForm
+                onCreated={(channel) => {
+                  onCreated(channel);
+                  // A webhook's signing secret is shown only once: keep the dialog open to copy it.
+                  if (channel.secret) setShowDone(true);
+                  else close();
+                }}
+              />
+              {showDone && (
+                <div className="flex justify-end">
+                  <Button type="button" onClick={close}>
+                    Done
+                  </Button>
+                </div>
+              )}
+            </div>
+          </dialog>,
+          document.body,
+        )}
+    </>
+  );
+}
 
 export function SiteForm({
   action,
@@ -16,7 +86,7 @@ export function SiteForm({
   cancelHref,
   channels,
 }: {
-  channels: { id: string; name: string; type: "discord" | "webhook" }[];
+  channels: Channel[];
   action: Action;
   initial: SiteFormValues;
   minIntervalSec: number;
@@ -27,6 +97,12 @@ export function SiteForm({
   const { values, fieldErrors = {} } = state;
   const invalid = (key: keyof SiteFormValues) =>
     fieldErrors[key] ? { "aria-invalid": true, "aria-describedby": `${key}-error` } : {};
+
+  // Channels created from the dialog start ticked. The server may also send them
+  // back in `channels` once the page revalidates, hence the de-duplication.
+  const [createdChannels, setCreatedChannels] = useState<Channel[]>([]);
+  const createdIds = new Set(createdChannels.map((c) => c.id));
+  const allChannels = [...channels.filter((c) => !createdIds.has(c.id)), ...createdChannels];
 
   return (
     // Keyed on the returned values so a failed submit re-renders with what the user typed.
@@ -86,23 +162,20 @@ export function SiteForm({
       </Field>
 
       <fieldset className="grid gap-2">
-        <legend className="mb-1.5 text-sm font-medium">Alert channels</legend>
-        {channels.length === 0 ? (
+        <legend className="mb-1.5 text-sm font-medium">Alert channels (optional)</legend>
+        {allChannels.length === 0 ? (
           <p className="text-muted text-xs">
-            No channels yet.{" "}
-            <Link href="/alerts" className="underline underline-offset-4">
-              Add Discord or a webhook
-            </Link>{" "}
-            to be notified when this site goes down and recovers.
+            No channels yet. Add Discord or a webhook to be notified when this site goes down and recovers, or skip it:
+            incidents still show up here, and you can add channels later.
           </p>
         ) : (
-          channels.map((channel) => (
+          allChannels.map((channel) => (
             <label key={channel.id} className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
                 name="channelIds"
                 value={channel.id}
-                defaultChecked={values.channelIds.includes(channel.id)}
+                defaultChecked={values.channelIds.includes(channel.id) || createdIds.has(channel.id)}
                 className="size-4"
               />
               {channel.name}
@@ -110,6 +183,9 @@ export function SiteForm({
             </label>
           ))
         )}
+        <div className="mt-1">
+          <NewChannelDialog onCreated={(channel) => setCreatedChannels((list) => [...list, channel])} />
+        </div>
       </fieldset>
 
       <label className="flex items-center gap-2 text-sm">

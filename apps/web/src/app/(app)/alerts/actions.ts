@@ -11,7 +11,7 @@ export type ChannelFormState = {
   values: { type: string; name: string; url: string };
   error?: string;
   /** Set once after creating a channel; the webhook secret is never shown again. */
-  created?: { name: string; secret: string | null };
+  created?: { id: string; type: "discord" | "webhook"; name: string; secret: string | null };
 };
 
 export async function createChannelAction(_prev: ChannelFormState, formData: FormData): Promise<ChannelFormState> {
@@ -25,9 +25,12 @@ export async function createChannelAction(_prev: ChannelFormState, formData: For
   if (values.type !== "discord" && values.type !== "webhook") return { values, error: "Pick a channel type." };
 
   try {
-    const { secret } = await createChannel(user.id, { type: values.type, name: values.name, url: values.url });
+    const { id, secret } = await createChannel(user.id, { type: values.type, name: values.name, url: values.url });
     revalidatePath("/alerts");
-    return { values: { type: values.type, name: "", url: "" }, created: { name: values.name.trim(), secret } };
+    return {
+      values: { type: values.type, name: "", url: "" },
+      created: { id, type: values.type, name: values.name.trim(), secret },
+    };
   } catch (err) {
     if (err instanceof ChannelInputError) return { values, error: err.message };
     throw err;

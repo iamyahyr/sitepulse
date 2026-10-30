@@ -27,15 +27,24 @@ function CopySecret({ secret }: { secret: string }) {
   );
 }
 
-export function ChannelForm() {
-  const [state, formAction, pending] = useActionState(createChannelAction, INITIAL);
+export type CreatedChannel = NonNullable<ChannelFormState["created"]>;
+
+export function ChannelForm({ onCreated }: { onCreated?: (channel: CreatedChannel) => void }) {
+  const [state, formAction, pending] = useActionState(async (prev: ChannelFormState, formData: FormData) => {
+    const next = await createChannelAction(prev, formData);
+    if (next.created) onCreated?.(next.created);
+    return next;
+  }, INITIAL);
   const [type, setType] = useState(state.values.type);
 
   return (
     <div className="grid gap-5">
       {state.created && (
         <div role="status" className="border-up/40 bg-up/10 grid gap-3 rounded-lg border px-4 py-3 text-sm">
-          <p className="font-medium">&ldquo;{state.created.name}&rdquo; is ready. Use &ldquo;Send test&rdquo; to try it.</p>
+          <p className="font-medium">
+            &ldquo;{state.created.name}&rdquo; is ready.{" "}
+            {onCreated ? "Try it later with “Send test” on the Alerts page." : "Use “Send test” to try it."}
+          </p>
           {state.created.secret && (
             <>
               <p className="text-muted">
