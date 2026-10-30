@@ -65,9 +65,17 @@
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
+  /* A stray wide element must never make the whole page pan sideways on a phone. */
+  overflow-x: clip;
 }
 
 /* Reports print to PDF in the light palette, whatever the screen uses. */

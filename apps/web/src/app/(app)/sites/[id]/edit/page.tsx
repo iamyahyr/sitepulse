@@ -44,7 +44,7 @@ export default async function EditSitePage({ params }: PageProps<"/sites/[id]/ed
         />
       </div>
 
-      <section className="border-down/30 max-w-xl rounded-xl border p-5">
+      <section className="border-down/30 max-w-xl rounded-xl border p-4 sm:p-5">
         <h2 className="text-sm font-semibold">Danger zone</h2>
         <p className="text-muted mt-1 mb-4 text-sm">Deletes the site with all its checks, incidents and alerts.</p>
         <DeleteSiteButton id={site.id} name={site.name} />

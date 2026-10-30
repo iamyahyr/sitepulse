@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, FileText, Globe, LayoutDashboard, LogOut, Settings, TriangleAlert } from "lucide-react";
+import { Activity, Bell, FileText, Globe, LayoutDashboard, LogOut, Settings, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
@@ -14,9 +14,23 @@ const NAV = [
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
-const ITEM = "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm whitespace-nowrap";
+/** Compact rows for the desktop sidebar, finger-sized ones for the mobile menu. */
+const ITEM = {
+  compact: "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm whitespace-nowrap",
+  touch: "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] whitespace-nowrap",
+} as const;
+type Size = keyof typeof ITEM;
 
-export function NavLinks() {
+export function Brand({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <Link href="/" onClick={onNavigate} className="flex items-center gap-2 px-2 font-semibold tracking-tight">
+      <Activity className="text-up size-5" aria-hidden />
+      SitePulse
+    </Link>
+  );
+}
+
+export function NavLinks({ size = "compact", onNavigate }: { size?: Size; onNavigate?: () => void }) {
   const pathname = usePathname();
 
   return NAV.map(({ href, label, icon: Icon }) => {
@@ -25,8 +39,9 @@ export function NavLinks() {
       <Link
         key={href}
         href={href}
+        onClick={onNavigate}
         aria-current={active ? "page" : undefined}
-        className={`${ITEM} ${active ? "bg-surface-muted font-medium" : "text-muted hover:text-foreground"}`}
+        className={`${ITEM[size]} ${active ? "bg-surface-muted font-medium" : "text-muted hover:text-foreground"}`}
       >
         <Icon className="size-4" aria-hidden />
         {label}
@@ -35,13 +50,13 @@ export function NavLinks() {
   });
 }
 
-export function SignOutButton() {
+export function SignOutButton({ size = "compact" }: { size?: Size }) {
   const router = useRouter();
 
   return (
     <button
       type="button"
-      className={`${ITEM} text-muted hover:text-foreground`}
+      className={`${ITEM[size]} text-muted hover:text-foreground w-full`}
       onClick={async () => {
         await authClient.signOut();
         router.push("/login");
@@ -49,8 +64,7 @@ export function SignOutButton() {
       }}
     >
       <LogOut className="size-4" aria-hidden />
-      <span className="hidden md:inline">Sign out</span>
-      <span className="sr-only md:hidden">Sign out</span>
+      Sign out
     </button>
   );
 }

@@ -26,7 +26,7 @@ const dayLabel = (t: number) => new Date(t).toISOString().slice(5, 10);
 export function LatencyChart({ data, span = "day" }: { data: LatencyPoint[]; span?: "day" | "multiday" }) {
   const tick = span === "day" ? hourLabel : dayLabel;
   return (
-    <div className="h-64 w-full">
+    <div className="h-56 w-full sm:h-64">
       <ResponsiveContainer>
         <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
           <CartesianGrid stroke="var(--border)" vertical={false} />
@@ -38,8 +38,9 @@ export function LatencyChart({ data, span = "day" }: { data: LatencyPoint[]; spa
             tick={{ fill: "var(--muted)", fontSize: 11 }}
             stroke="var(--border)"
             tickCount={7}
+            minTickGap={16}
           />
-          <YAxis tick={{ fill: "var(--muted)", fontSize: 11 }} stroke="var(--border)" unit=" ms" width={64} />
+          <YAxis tick={{ fill: "var(--muted)", fontSize: 11 }} stroke="var(--border)" unit=" ms" width={60} />
           <Tooltip
             labelFormatter={(t) =>
               span === "day" ? `${hourLabel(Number(t))} UTC` : `${dayLabel(Number(t))} ${hourLabel(Number(t))} UTC`

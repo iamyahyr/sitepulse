@@ -167,7 +167,7 @@ export default async function SitePage({ params, searchParams }: PageProps<"/sit
                     href={key === "24h" ? `/sites/${site.id}` : `/sites/${site.id}?range=${key}`}
                     aria-current={key === range ? "page" : undefined}
                     scroll={false}
-                    className={`rounded-md px-2 py-1 text-xs ${key === range ? "bg-surface-muted font-medium" : "text-muted hover:text-foreground"}`}
+                    className={`rounded-md px-2.5 py-1.5 text-xs sm:px-2 sm:py-1 ${key === range ? "bg-surface-muted font-medium" : "text-muted hover:text-foreground"}`}
                   >
                     {RANGES[key].label}
                   </Link>

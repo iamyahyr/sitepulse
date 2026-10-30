@@ -35,7 +35,10 @@ function Summary({ totals, previous }: { totals: ReportTotals; previous: ReportT
       />
       <Stat label="Downtime" value={totals.downtimeMs ? duration(totals.downtimeMs) : "None"} />
       <Stat label="Mean time to recover" value={totals.meanRecoveryMs ? duration(totals.meanRecoveryMs) : "—"} />
-      <Stat label="Response time (p50)" value={ms(totals.p50Ms)} hint={`${totals.checks.toLocaleString("en")} checks`} />
+      {/* Fifth of five: on the two-column phone grid it takes the whole last row. */}
+      <div className="col-span-2 grid lg:col-span-1 print:col-span-1">
+        <Stat label="Response time (p50)" value={ms(totals.p50Ms)} hint={`${totals.checks.toLocaleString("en")} checks`} />
+      </div>
     </div>
   );
 }
@@ -98,7 +101,7 @@ export function ReportView({
           <Summary totals={totals} previous={previous} />
 
           <Card title="Sites">
-            <div className="-mx-5 -my-5 overflow-x-auto">
+            <div className="-mx-5 -my-5 hidden overflow-x-auto md:block print:block">
               <table className="w-full min-w-[640px] text-sm whitespace-nowrap">
                 <thead className="text-muted text-left text-xs">
                   <tr className="border-border border-b">
@@ -132,6 +135,32 @@ export function ReportView({
                 </tbody>
               </table>
             </div>
+            <ul className="divide-border -mx-4 -my-4 divide-y sm:-mx-5 sm:-my-5 md:hidden print:hidden">
+              {sites.map((site) => (
+                <li key={site.id} className="px-4 py-3.5 text-sm sm:px-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{site.name}</p>
+                      {showHosts && <p className="text-muted truncate font-mono text-xs">{site.host}</p>}
+                    </div>
+                    <span className="shrink-0 font-mono font-medium tabular-nums">{formatUptime(site.uptime)}</span>
+                  </div>
+                  <div className="text-muted mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                    <span>
+                      {site.incidents} {site.incidents === 1 ? "incident" : "incidents"}
+                    </span>
+                    {site.downtimeMs > 0 && <span>{duration(site.downtimeMs)} down</span>}
+                    <span className="font-mono tabular-nums">
+                      p50 {ms(site.p50Ms)} · p95 {ms(site.p95Ms)}
+                    </span>
+                    <span className="tabular-nums">
+                      {site.checks.toLocaleString("en")} checks
+                      {site.failedChecks > 0 && <span className="text-down"> · {site.failedChecks} failed</span>}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </Card>
 
           <Card title="Day by day">

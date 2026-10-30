@@ -196,7 +196,7 @@ export default async function IncidentPage({ params }: PageProps<"/incidents/[id
                 <div className="min-w-0">
                   <p className="text-sm">
                     <span className="font-medium">{m.title}</span>
-                    <span className="text-muted ml-2 font-mono text-xs">{dateTime(m.at)}</span>
+                    <span className="text-muted block font-mono text-xs sm:ml-2 sm:inline">{dateTime(m.at)}</span>
                   </p>
                   {m.detail && <p className="text-muted mt-0.5 text-sm break-words">{m.detail}</p>}
                 </div>

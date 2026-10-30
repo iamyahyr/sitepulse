@@ -38,3 +38,8 @@ const DATE_TIME = new Intl.DateTimeFormat("en", {
 export function dateTime(date: Date): string {
   return `${DATE_TIME.format(date)} UTC`;
 }
+
+/** "https://example.com/shop" → "example.com/shop", for compact site listings. */
+export function displayHost(url: string): string {
+  return url.replace(/^https?:\/\//, "");
+}

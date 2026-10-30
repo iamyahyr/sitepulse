@@ -29,6 +29,33 @@ function Setting({ name, value, hint }: { name: string; value: ReactNode; hint?:
   );
 }
 
+type Worker = Awaited<ReturnType<typeof instanceStatus>>["workers"][number];
+
+function WorkerState({ worker: w, now }: { worker: Worker; now: Date }) {
+  if (now.getTime() - w.lastSeenAt.getTime() > WORKER_STALE_MS) {
+    return (
+      <span className="text-down inline-flex items-center gap-2">
+        <StatusDot state="down" />
+        Not responding
+      </span>
+    );
+  }
+  if (w.offlineSince) {
+    return (
+      <span className="text-suspect inline-flex items-center gap-2" title={`Since ${w.offlineSince.toISOString()}`}>
+        <StatusDot state="suspect" />
+        {w.offlineReason === "dns" ? "No DNS" : "No internet"}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-2">
+      <StatusDot state="up" />
+      Running
+    </span>
+  );
+}
+
 const mono = (value: string) => <code className="font-mono text-xs break-all">{value}</code>;
 
 export default async function SettingsPage() {
@@ -62,83 +89,84 @@ export default async function SettingsPage() {
       {/* Container names and network settings are nobody else's business on a public demo. */}
       {!e.DEMO_MODE && (
         <>
-          <Card title="Workers" action={<span className="text-muted text-xs">Reported in the last 24 h</span>}>
-            {workers.length === 0 ? (
-              <EmptyState title="No worker has reported yet">
-                Sites are only checked while the worker runs. With Docker it starts with the stack; in development, run{" "}
-                {mono("pnpm dev")}.
-              </EmptyState>
-            ) : (
-              <div className="-mx-5 -my-5 overflow-x-auto">
-                <table className="w-full min-w-[640px] text-sm whitespace-nowrap">
-                  <thead className="text-muted text-left text-xs">
-                    <tr className="border-border border-b">
-                      <th className="px-5 py-2.5 font-medium">Worker</th>
-                      <th className="px-3 py-2.5 font-medium">Status</th>
-                      <th className="px-3 py-2.5 font-medium">Version</th>
-                      <th className="px-3 py-2.5 font-medium">Last heartbeat</th>
-                      <th className="px-5 py-2.5 text-right font-medium">Checks run</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {workers.map((w) => {
-                      const stale = now.getTime() - w.lastSeenAt.getTime() > WORKER_STALE_MS;
-                      return (
+            <Card title="Workers" action={<span className="text-muted text-xs">Reported in the last 24 h</span>}>
+              {workers.length === 0 ? (
+                <EmptyState title="No worker has reported yet">
+                  Sites are only checked while the worker runs. With Docker it starts with the stack; in development, run{" "}
+                  {mono("pnpm dev")}.
+                </EmptyState>
+              ) : (
+                <>
+                <div className="-mx-5 -my-5 hidden overflow-x-auto md:block">
+                  <table className="w-full min-w-[640px] text-sm whitespace-nowrap">
+                    <thead className="text-muted text-left text-xs">
+                      <tr className="border-border border-b">
+                        <th className="px-5 py-2.5 font-medium">Worker</th>
+                        <th className="px-3 py-2.5 font-medium">Status</th>
+                        <th className="px-3 py-2.5 font-medium">Version</th>
+                        <th className="px-3 py-2.5 font-medium">Last heartbeat</th>
+                        <th className="px-5 py-2.5 text-right font-medium">Checks run</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {workers.map((w) => (
                         <tr key={w.workerId} className="border-border border-b last:border-0">
                           <td className="px-5 py-3 font-mono text-xs">{w.workerId}</td>
                           <td className="px-3 py-3">
-                            {stale ? (
-                              <span className="text-down inline-flex items-center gap-2">
-                                <StatusDot state="down" />
-                                Not responding
-                              </span>
-                            ) : w.offlineSince ? (
-                              <span className="text-suspect inline-flex items-center gap-2" title={`Since ${w.offlineSince.toISOString()}`}>
-                                <StatusDot state="suspect" />
-                                {w.offlineReason === "dns" ? "No DNS" : "No internet"}
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-2">
-                                <StatusDot state="up" />
-                                Running
-                              </span>
-                            )}
+                            <WorkerState worker={w} now={now} />
                           </td>
                           <td className="px-3 py-3 font-mono text-xs">{w.version}</td>
                           <td className="text-muted px-3 py-3">{relativeTime(w.lastSeenAt, now)}</td>
                           <td className="px-5 py-3 text-right font-mono tabular-nums">{w.checksRun.toLocaleString("en")}</td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <ul className="divide-border -mx-4 -my-4 divide-y sm:-mx-5 sm:-my-5 md:hidden">
+                  {workers.map((w) => (
+                    <li key={w.workerId} className="px-4 py-3.5 text-sm sm:px-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="min-w-0 truncate font-mono text-xs leading-5">{w.workerId}</p>
+                        <span className="shrink-0">
+                          <WorkerState worker={w} now={now} />
+                        </span>
+                      </div>
+                      <div className="text-muted mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                        <span className="font-mono">{w.version}</span>
+                        <span>{relativeTime(w.lastSeenAt, now)}</span>
+                        <span className="ml-auto font-mono tabular-nums">{w.checksRun.toLocaleString("en")} checks</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                </>
+              )}
+            </Card>
 
-          <Card title="Instance">
-            <dl className="-my-3">
-              <Setting name="Public URL" value={mono(e.APP_URL)} hint="APP_URL: used for sign-in cookies and links in alerts." />
-              <Setting
-                name="Sites per user"
-                value={e.MAX_SITES_PER_USER}
-                hint="MAX_SITES_PER_USER"
-              />
-              <Setting name="Shortest check interval" value={`${e.MIN_INTERVAL_SEC} s`} hint="MIN_INTERVAL_SEC" />
-              <Setting
-                name="Private networks allowed"
-                value={e.ALLOW_PRIVATE_CIDRS.length ? mono(e.ALLOW_PRIVATE_CIDRS.join(", ")) : "None"}
-                hint="ALLOW_PRIVATE_CIDRS: private ranges this instance may monitor and send webhooks to. Set the same value on the worker."
-              />
-              <Setting
-                name="Trusted proxies"
-                value={mono(e.TRUSTED_PROXIES.join(", "))}
-                hint="TRUSTED_PROXIES: hops whose X-Forwarded-For is believed for login rate limits."
-              />
-              <Setting name="Database size" value={bytes(databaseBytes)} hint="Raw checks are pruned by the worker after CHECK_RETENTION_DAYS (30 by default)." />
-              <Setting name="Mode" value={e.DEMO_MODE ? "Read-only public demo" : "Self-hosted"} />
-            </dl>
-          </Card>
+            <Card title="Instance">
+              <dl className="-my-3">
+                <Setting name="Public URL" value={mono(e.APP_URL)} hint="APP_URL: used for sign-in cookies and links in alerts." />
+                <Setting
+                  name="Sites per user"
+                  value={e.MAX_SITES_PER_USER}
+                  hint="MAX_SITES_PER_USER"
+                />
+                <Setting name="Shortest check interval" value={`${e.MIN_INTERVAL_SEC} s`} hint="MIN_INTERVAL_SEC" />
+                <Setting
+                  name="Private networks allowed"
+                  value={e.ALLOW_PRIVATE_CIDRS.length ? mono(e.ALLOW_PRIVATE_CIDRS.join(", ")) : "None"}
+                  hint="ALLOW_PRIVATE_CIDRS: private ranges this instance may monitor and send webhooks to. Set the same value on the worker."
+                />
+                <Setting
+                  name="Trusted proxies"
+                  value={mono(e.TRUSTED_PROXIES.join(", "))}
+                  hint="TRUSTED_PROXIES: hops whose X-Forwarded-For is believed for login rate limits."
+                />
+                <Setting name="Database size" value={bytes(databaseBytes)} hint="Raw checks are pruned by the worker after CHECK_RETENTION_DAYS (30 by default)." />
+                <Setting name="Mode" value={e.DEMO_MODE ? "Read-only public demo" : "Self-hosted"} />
+              </dl>
+            </Card>
         </>
       )}
     </div>

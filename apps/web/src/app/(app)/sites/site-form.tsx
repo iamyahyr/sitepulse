@@ -199,7 +199,7 @@ export function SiteForm({
         </p>
       )}
 
-      <div className="flex gap-2">
+      <div className="grid gap-2 sm:flex">
         <Button type="submit" disabled={pending}>
           {pending && <Loader2 className="size-4 animate-spin" aria-hidden />}
           {submitLabel}

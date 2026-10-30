@@ -8,7 +8,10 @@ const BUTTON_VARIANTS = {
 } as const;
 
 export function buttonClass(variant: keyof typeof BUTTON_VARIANTS = "primary", extra = "") {
-  return `inline-flex h-9 items-center justify-center gap-2 rounded-md px-3.5 text-sm font-medium transition disabled:pointer-events-none disabled:opacity-50 ${BUTTON_VARIANTS[variant]} ${extra}`;
+  // Finger-sized on phones. A height passed by the caller must win, and a
+  // responsive default would override it at `sm`, so leave it out then.
+  const height = /(^|\s)h-/.test(extra) ? "" : "h-10 sm:h-9";
+  return `inline-flex ${height} items-center justify-center gap-2 rounded-md px-3.5 text-sm font-medium transition disabled:pointer-events-none disabled:opacity-50 ${BUTTON_VARIANTS[variant]} ${extra}`;
 }
 
 export function Button({
@@ -20,7 +23,7 @@ export function Button({
 }
 
 const FIELD_CONTROL =
-  "border-border bg-surface placeholder:text-muted/70 focus:border-foreground/40 focus:ring-foreground/10 h-9 w-full rounded-md border px-3 text-sm outline-none focus:ring-2 aria-invalid:border-down";
+  "border-border bg-surface placeholder:text-muted/70 focus:border-foreground/40 focus:ring-foreground/10 h-10 w-full rounded-md border px-3 text-base outline-none sm:h-9 sm:text-sm focus:ring-2 aria-invalid:border-down";
 
 export function Input({ className = "", ...props }: ComponentProps<"input">) {
   return <input className={`${FIELD_CONTROL} ${className}`} {...props} />;

@@ -87,7 +87,7 @@ export default async function IncidentsPage({ searchParams }: PageProps<"/incide
                 key={f.value}
                 href={href({ status: f.value, site: site?.id })}
                 aria-current={f.value === status ? "page" : undefined}
-                className={`rounded-md px-2 py-1 text-xs ${f.value === status ? "bg-surface-muted font-medium" : "text-muted hover:text-foreground"}`}
+                className={`rounded-md px-2.5 py-1.5 text-xs sm:px-2 sm:py-1 ${f.value === status ? "bg-surface-muted font-medium" : "text-muted hover:text-foreground"}`}
               >
                 {f.label}
               </Link>
@@ -96,12 +96,12 @@ export default async function IncidentsPage({ searchParams }: PageProps<"/incide
         }
       >
         {sites.length > 1 && (
-          <form action="/incidents" className="-mt-1 mb-4 flex flex-wrap items-center gap-2">
+          <form action="/incidents" className="-mt-1 mb-4 flex items-center gap-2">
             {status !== "all" && <input type="hidden" name="status" value={status} />}
-            <label htmlFor="site" className="text-muted text-sm">
+            <label htmlFor="site" className="text-muted sr-only text-sm sm:not-sr-only">
               Site
             </label>
-            <div className="w-56">
+            <div className="min-w-0 flex-1 sm:w-56 sm:flex-none">
               <Select id="site" name="site" defaultValue={site?.id ?? ""}>
                 <option value="">All sites</option>
                 {sites.map((s) => (
@@ -122,44 +122,68 @@ export default async function IncidentsPage({ searchParams }: PageProps<"/incide
             {status === "all" && "When a site fails two checks in a row, the incident shows up here."}
           </EmptyState>
         ) : (
-          <div className="-mx-5 -mb-5 overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm whitespace-nowrap">
-              <thead className="text-muted text-left text-xs">
-                <tr className="border-border border-y">
-                  <th className="px-5 py-2.5 font-medium">Status</th>
-                  <th className="px-3 py-2.5 font-medium">Site</th>
-                  <th className="px-3 py-2.5 font-medium">Cause</th>
-                  <th className="px-3 py-2.5 font-medium">Started</th>
-                  <th className="px-3 py-2.5 font-medium">Duration</th>
-                  <th className="px-5 py-2.5 text-right font-medium">Failed checks</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(({ incident, site: s, closedManually, openingStatus }) => (
-                  <tr key={incident.id} className="border-border hover:bg-surface-muted/50 border-b last:border-0">
-                    <td className="px-5 py-3">
-                      <IncidentStatus resolvedAt={incident.resolvedAt} closedManually={closedManually} />
-                    </td>
-                    <td className="px-3 py-3">
-                      <Link href={`/incidents/${incident.id}`} className="font-medium hover:underline">
-                        {s.name}
-                      </Link>
-                    </td>
-                    <td className="max-w-xs truncate px-3 py-3">
-                      {diagnose(incident.causeCode as ErrorCode, openingStatus).title}
-                      <span className="text-muted ml-2 font-mono text-xs">{incident.causeCode}</span>
-                    </td>
-                    <td className="text-muted px-3 py-3">{dateTime(incident.startedAt)}</td>
-                    <td className="px-3 py-3 tabular-nums">
-                      {duration((incident.resolvedAt ?? now).getTime() - incident.startedAt.getTime())}
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono tabular-nums">{incident.failedChecks}</td>
+          <div className="-mx-4 -mb-4 sm:-mx-5 sm:-mb-5">
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[720px] text-sm whitespace-nowrap">
+                <thead className="text-muted text-left text-xs">
+                  <tr className="border-border border-y">
+                    <th className="px-5 py-2.5 font-medium">Status</th>
+                    <th className="px-3 py-2.5 font-medium">Site</th>
+                    <th className="px-3 py-2.5 font-medium">Cause</th>
+                    <th className="px-3 py-2.5 font-medium">Started</th>
+                    <th className="px-3 py-2.5 font-medium">Duration</th>
+                    <th className="px-5 py-2.5 text-right font-medium">Failed checks</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rows.map(({ incident, site: s, closedManually, openingStatus }) => (
+                    <tr key={incident.id} className="border-border hover:bg-surface-muted/50 border-b last:border-0">
+                      <td className="px-5 py-3">
+                        <IncidentStatus resolvedAt={incident.resolvedAt} closedManually={closedManually} />
+                      </td>
+                      <td className="px-3 py-3">
+                        <Link href={`/incidents/${incident.id}`} className="font-medium hover:underline">
+                          {s.name}
+                        </Link>
+                      </td>
+                      <td className="max-w-xs truncate px-3 py-3">
+                        {diagnose(incident.causeCode as ErrorCode, openingStatus).title}
+                        <span className="text-muted ml-2 font-mono text-xs">{incident.causeCode}</span>
+                      </td>
+                      <td className="text-muted px-3 py-3">{dateTime(incident.startedAt)}</td>
+                      <td className="px-3 py-3 tabular-nums">
+                        {duration((incident.resolvedAt ?? now).getTime() - incident.startedAt.getTime())}
+                      </td>
+                      <td className="px-5 py-3 text-right font-mono tabular-nums">{incident.failedChecks}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ul className="divide-border border-border divide-y border-t md:hidden">
+              {rows.map(({ incident, site: s, closedManually, openingStatus }) => (
+                <li key={incident.id}>
+                  <Link href={`/incidents/${incident.id}`} className="active:bg-surface-muted/60 block px-4 py-3.5 sm:px-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="min-w-0 font-medium">{diagnose(incident.causeCode as ErrorCode, openingStatus).title}</p>
+                      <span className="shrink-0 pt-0.5 text-sm">
+                        <IncidentStatus resolvedAt={incident.resolvedAt} closedManually={closedManually} />
+                      </span>
+                    </div>
+                    <div className="text-muted mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                      <span className="text-foreground">{s.name}</span>
+                      <span>{dateTime(incident.startedAt)}</span>
+                      <span className="tabular-nums">
+                        {duration((incident.resolvedAt ?? now).getTime() - incident.startedAt.getTime())}
+                      </span>
+                      <span className="font-mono">{incident.causeCode}</span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
             {(before || next) && (
-              <nav aria-label="Pages" className="border-border flex justify-between gap-3 border-t px-5 py-3 text-sm">
+              <nav aria-label="Pages" className="border-border flex justify-between gap-3 border-t px-4 py-3 text-sm sm:px-5">
                 {before ? (
                   <Link href={href({ site: site?.id })} className="text-muted hover:text-foreground">
                     ← Newest

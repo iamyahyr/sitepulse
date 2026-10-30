@@ -100,7 +100,7 @@ export function ChannelForm({ onCreated }: { onCreated?: (channel: CreatedChanne
             {state.error}
           </p>
         )}
-        <div>
+        <div className="grid sm:block">
           <Button type="submit" disabled={pending}>
             {pending && <Loader2 className="size-4 animate-spin" aria-hidden />}
             Add channel

@@ -10,12 +10,16 @@ import { StatusBadge, StatusDot } from "@/components/status-badge";
 import { buttonClass } from "@/components/ui";
 import { UptimeBar } from "@/components/uptime-bar";
 import { brokenPhase, checkPhases } from "@/lib/checks";
-import { clockTime, duration, ms, relativeTime } from "@/lib/format";
+import { clockTime, displayHost, duration, ms, relativeTime } from "@/lib/format";
 import { WORKER_STALE_MS } from "@/lib/worker";
 import { getDashboard, type OpenIncident } from "@/server/dal/dashboard";
 import { liveFingerprint } from "@/server/dal/live";
 import { env } from "@/server/env";
 import { requireUser } from "@/server/session";
+
+/** Whole days until a certificate expires, or null when it is unknown. */
+const daysUntil = (date: Date | null, now: Date) =>
+  date ? Math.floor((date.getTime() - now.getTime()) / 86_400_000) : null;
 
 const UPTIME_METHOD =
   "Time-weighted: the share of the last 7 days not covered by a confirmed incident. Not the ratio of successful checks.";
@@ -170,7 +174,7 @@ export default async function DashboardPage() {
           )}
 
           <Card title="Sites">
-            <div className="-mx-5 -my-5 overflow-x-auto">
+            <div className="-mx-5 -my-5 hidden overflow-x-auto md:block">
               <table className="w-full min-w-[760px] text-sm whitespace-nowrap">
                 <thead className="text-muted text-left text-xs">
                   <tr className="border-border border-b">
@@ -189,9 +193,7 @@ export default async function DashboardPage() {
                 </thead>
                 <tbody>
                   {sites.map((site) => {
-                    const tlsDays = site.tlsExpiresAt
-                      ? Math.floor((site.tlsExpiresAt.getTime() - now.getTime()) / 86_400_000)
-                      : null;
+                    const tlsDays = daysUntil(site.tlsExpiresAt, now);
                     return (
                       <tr key={site.id} className="border-border border-b last:border-0">
                         <td className="px-5 py-3">
@@ -199,7 +201,7 @@ export default async function DashboardPage() {
                             {site.name}
                           </Link>
                           <p className="text-muted max-w-xs truncate font-mono text-xs">
-                            {site.url.replace(/^https?:\/\//, "")}
+                            {displayHost(site.url)}
                           </p>
                         </td>
                         <td className="px-3 py-3">
@@ -239,6 +241,51 @@ export default async function DashboardPage() {
                 </tbody>
               </table>
             </div>
+            <ul className="divide-border -mx-4 -my-4 divide-y sm:-mx-5 sm:-my-5 md:hidden">
+              {sites.map((site) => {
+                const tlsDays = daysUntil(site.tlsExpiresAt, now);
+                return (
+                  <li key={site.id}>
+                    <Link href={`/sites/${site.id}`} className="active:bg-surface-muted/60 block px-4 py-3.5 sm:px-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{site.name}</p>
+                          <p className="text-muted truncate font-mono text-xs">{displayHost(site.url)}</p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2 pt-0.5">
+                          {site.degradation && (
+                            <span className="border-suspect/50 text-suspect rounded border px-1.5 py-0.5 text-[11px] font-medium">
+                              Slow
+                            </span>
+                          )}
+                          {site.enabled ? <StatusBadge state={site.state} /> : <span className="text-muted text-sm">Paused</span>}
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <UptimeBar buckets={site.buckets} />
+                      </div>
+                      <div className="text-muted mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                        <span>
+                          7 d <span className="text-foreground font-mono tabular-nums">{formatUptime(site.uptime7d)}</span>
+                        </span>
+                        <span>
+                          p50 <span className="text-foreground font-mono tabular-nums">{ms(site.p50Ms)}</span>
+                        </span>
+                        {tlsDays !== null && (
+                          <span className={`inline-flex items-center gap-1 ${tlsDays < 14 ? "text-suspect" : ""}`}>
+                            {tlsDays < 14 && <ShieldAlert className="size-3.5" aria-hidden />}
+                            TLS {tlsDays} d
+                          </span>
+                        )}
+                        <span className="ml-auto">
+                          {site.lastCheckedAt ? relativeTime(site.lastCheckedAt, now) : "Not yet"}
+                        </span>
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           </Card>
         </>
       )}

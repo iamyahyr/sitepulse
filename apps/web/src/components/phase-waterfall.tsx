@@ -36,7 +36,7 @@ export function PhaseWaterfall({
         const left = (starts[i]! / total) * 100;
         const broken = key === failedAt;
         return (
-          <div key={key} className="grid grid-cols-[7.5rem_1fr_4.5rem] items-center gap-3">
+          <div key={key} className="grid grid-cols-[6rem_1fr_4rem] items-center gap-2 sm:grid-cols-[7.5rem_1fr_4.5rem] sm:gap-3">
             <span className={broken ? "text-down font-semibold" : "text-muted"}>{name}</span>
             <div className="bg-surface-muted relative h-3 rounded-sm">
               {broken ? (

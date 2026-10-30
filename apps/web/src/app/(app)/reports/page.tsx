@@ -55,8 +55,8 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
             A month of uptime, incidents and response times per client, to share as a link or a PDF.
           </p>
         </div>
-        <form action="/reports" className="flex flex-wrap items-center gap-2">
-          <div className="w-56">
+        <form action="/reports" className="grid w-full grid-cols-[1fr_auto] gap-2 sm:flex sm:w-auto sm:items-center">
+          <div className="col-span-2 min-w-0 sm:w-56">
             <Select name="client" aria-label="Client" defaultValue={client ?? NO_CLIENT}>
               {clients.map((c) => (
                 <option key={c ?? NO_CLIENT} value={c ?? NO_CLIENT}>
@@ -65,7 +65,7 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
               ))}
             </Select>
           </div>
-          <div className="w-44">
+          <div className="min-w-0 sm:w-44">
             <Select name="month" aria-label="Month" defaultValue={month.key}>
               {months.map((m, i) => (
                 <option key={m.key} value={m.key}>
